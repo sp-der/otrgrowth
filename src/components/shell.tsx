@@ -12,9 +12,11 @@ import {
   Megaphone,
   ChartNoAxesCombined,
   ChevronDown,
+  LogOut,
   Menu,
   X,
 } from "lucide-react";
+import { signOut } from "@/lib/supabase/auth";
 import { useWorkspace } from "./workspace-provider";
 const navigation = [
   ["/", "Dashboard", LayoutDashboard],
@@ -81,7 +83,7 @@ export function Shell({ children }: { children: ReactNode }) {
           <div className="workspace-status">
             <span className="status-dot" />
             <span>
-              Local workspace<small>Milestone 01</small>
+              Cloud synced<small>Supabase · RLS protected</small>
             </span>
           </div>
           <div className="owner">
@@ -89,6 +91,16 @@ export function Shell({ children }: { children: ReactNode }) {
             <div>
               OTR Services<small>Internal command center</small>
             </div>
+            <button
+              className="icon-button"
+              aria-label="Sign out"
+              title="Sign out"
+              onClick={() => {
+                void signOut().finally(() => location.reload());
+              }}
+            >
+              <LogOut size={17} />
+            </button>
           </div>
         </div>
       </aside>
@@ -119,7 +131,7 @@ export function Shell({ children }: { children: ReactNode }) {
               onChange={(e) => {
                 setError("");
                 void select(e.target.value).catch(() =>
-                  setError("Could not switch business. Check browser storage."),
+                  setError("Could not switch business. Check the cloud connection."),
                 );
               }}
             >
@@ -146,7 +158,7 @@ export function Shell({ children }: { children: ReactNode }) {
             OTR GROWTH <span className="muted">/</span> Built to move business
             forward.
           </span>
-          <span>INTERNAL · MILESTONE 01</span>
+          <span>INTERNAL · CLOUD WORKSPACE</span>
         </footer>
       </div>
     </div>
