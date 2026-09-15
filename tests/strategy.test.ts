@@ -6,7 +6,10 @@ import { parseStrategyResponse } from "../src/lib/ai/schemas/strategy-response";
 import { strategySchema } from "../src/lib/domain/schemas";
 import { seedWorkspace } from "../src/lib/data/seed";
 import { strategyMessages } from "../src/lib/ai/prompts/strategy";
-import { POST } from "../src/app/api/ai/strategy/route";
+import {
+  handleStrategyRequest,
+  POST,
+} from "../src/app/api/ai/strategy/route";
 
 export const fixture = {
   executiveSummary:
@@ -181,17 +184,28 @@ const request = (
     headers,
     body,
   });
+const authenticatedPOST = (req: Request) =>
+  handleStrategyRequest(req, async () => "test-user");
+test("API requires authentication", async () => {
+  const response = await POST(request(JSON.stringify(profile)));
+  assert.equal(response.status, 401);
+  assert.equal((await response.json()).code, "UNAUTHORIZED");
+});
 test("API validates bad input, payload sizes, content types and request origins", async () => {
-  assert.equal((await POST(request("invalid"))).status, 400);
-  assert.equal((await POST(request("{}"))).status, 400);
-  assert.equal((await POST(request("x".repeat(64001)))).status, 413);
+  assert.equal((await authenticatedPOST(request("invalid"))).status, 400);
+  assert.equal((await authenticatedPOST(request("{}"))).status, 400);
+  assert.equal((await authenticatedPOST(request("x".repeat(64001)))).status, 413);
   assert.equal(
-    (await POST(request("{}", { "Content-Type": "text/plain" }))).status,
+    (
+      await authenticatedPOST(
+        request("{}", { "Content-Type": "text/plain" }),
+      )
+    ).status,
     415,
   );
   assert.equal(
     (
-      await POST(
+      await authenticatedPOST(
         request("{}", {
           "Content-Type": "application/json",
           Origin: "https://other.example",
@@ -205,7 +219,7 @@ test("API returns actionable missing-configuration response without credentials"
   const before = process.env.AI_API_KEY;
   delete process.env.AI_API_KEY;
   try {
-    const response = await POST(request(JSON.stringify(profile)));
+    const response = await authenticatedPOST(request(JSON.stringify(profile)));
     assert.equal(response.status, 503);
     const body = await response.json();
     assert.equal(body.code, "GATEWAY_NOT_CONFIGURED");
