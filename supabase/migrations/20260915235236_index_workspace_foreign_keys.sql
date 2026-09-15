@@ -1,0 +1,11 @@
+create index business_profiles_business_owner_idx on public.business_profiles(business_id, owner_id);
+create index business_profiles_owner_idx on public.business_profiles(owner_id);
+create index strategies_business_owner_idx on public.strategies(business_id, owner_id);
+create index strategies_owner_idx on public.strategies(owner_id);
+create index content_items_business_owner_idx on public.content_items(business_id, owner_id);
+create index campaigns_business_owner_idx on public.campaigns(business_id, owner_id);
+create index creatives_business_owner_idx on public.creatives(business_id, owner_id);
+create index creatives_campaign_owner_idx on public.creatives(campaign_id, owner_id);
+create index performance_metrics_business_owner_idx on public.performance_metrics(business_id, owner_id);
+create index activity_business_owner_idx on public.activity(business_id, owner_id);
+create index workspace_state_selected_business_owner_idx on public.workspace_state(selected_business_id, owner_id);
