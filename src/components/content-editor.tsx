@@ -26,7 +26,7 @@ export function ContentEditor({
     try {
       await onSave(parsed.data);
     } catch {
-      setError("Could not save content. Check browser storage and retry.");
+      setError("Could not save content to the cloud workspace. Reload and retry.");
     } finally {
       setSaving(false);
     }

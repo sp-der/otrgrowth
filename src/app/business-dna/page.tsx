@@ -67,7 +67,7 @@ export default function BusinessDNA() {
     } catch {
       setFailed(true);
       setMessage(
-        "Your edits could not be saved. Check browser storage and try again.",
+        "Your edits could not be saved to the cloud workspace. Reload and try again.",
       );
     } finally {
       setSaving(false);
@@ -151,7 +151,7 @@ export default function BusinessDNA() {
             <span>
               {dirty
                 ? "Unsaved changes · save before leaving this page"
-                : "Profile saved in this browser"}
+                : "Profile synced to Supabase"}
             </span>
             <button disabled={saving || !dirty} className="button primary">
               <Save size={15} />

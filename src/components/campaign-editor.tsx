@@ -26,7 +26,7 @@ export function CampaignEditor({
     try {
       await onSave(parsed.data);
     } catch {
-      setError("Could not save campaign. Check browser storage and retry.");
+      setError("Could not save campaign to the cloud workspace. Reload and retry.");
     } finally {
       setSaving(false);
     }
@@ -84,7 +84,7 @@ export function CampaignEditor({
           </select>
         </label>
         <label className="field">
-          Campaign status (local tracking only)
+          Campaign status (tracking only)
           <select
             value={item.status}
             onChange={(e) =>

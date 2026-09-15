@@ -2,6 +2,7 @@ import { businessProfileSchema } from "@/lib/domain/schemas";
 import { generateStrategy } from "@/lib/ai/client";
 import { AIError } from "@/lib/ai/types";
 import { readLimited } from "@/lib/ai/read-limited";
+import { verifyAccessToken } from "@/lib/supabase/server-auth";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -24,9 +25,6 @@ const isSameOrigin = (request: Request) => {
     return false;
   }
 
-  // In Next.js dev/proxy runtimes request.url can be canonicalized to localhost
-  // even when the browser reached 127.0.0.1. Prefer the actual inbound host
-  // headers for CSRF origin validation, then fall back to request.url.
   const host =
     firstHeaderValue(request.headers.get("x-forwarded-host")) ??
     request.headers.get("host");
@@ -39,11 +37,22 @@ const isSameOrigin = (request: Request) => {
   return origin.origin === requestUrl.origin;
 };
 
-export async function POST(request: Request) {
+type Authenticator = (request: Request) => Promise<string | null>;
+
+export async function handleStrategyRequest(
+  request: Request,
+  authenticate: Authenticator = verifyAccessToken,
+) {
   if (!isSameOrigin(request))
     return json(
       { code: "FORBIDDEN", error: "Cross-origin requests are not allowed." },
       403,
+    );
+
+  if (!(await authenticate(request)))
+    return json(
+      { code: "UNAUTHORIZED", error: "Sign in to generate a strategy." },
+      401,
     );
 
   if (
@@ -104,4 +113,8 @@ export async function POST(request: Request) {
       500,
     );
   }
+}
+
+export async function POST(request: Request) {
+  return handleStrategyRequest(request);
 }

@@ -4,6 +4,7 @@ import { useState } from "react";
 import { ArrowUpRight, LoaderCircle, Sparkles } from "lucide-react";
 import { z } from "zod";
 import { strategySchema } from "@/lib/domain/schemas";
+import { getAccessToken } from "@/lib/supabase/auth";
 import { recordActivity, useWorkspace } from "@/components/workspace-provider";
 import { StrategyView } from "@/components/strategy-view";
 import { Feedback, PageHeader } from "@/components/ui";
@@ -26,9 +27,18 @@ export default function Strategist() {
     setState("generating");
     setMessage("");
     try {
+      const token = await getAccessToken();
+      if (!token) {
+        setState("error");
+        setMessage("Your session expired. Sign in again before generating.");
+        return;
+      }
       const response = await fetch("/api/ai/strategy", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
         body: JSON.stringify(business.profile),
         signal: AbortSignal.timeout(55_000),
       });
@@ -77,7 +87,7 @@ export default function Strategist() {
       } catch {
         setState("error");
         setMessage(
-          "The strategy was generated but could not be saved. Check browser storage before trying again.",
+          "The strategy was generated but could not be saved to the cloud workspace. Reload and try again.",
         );
         return;
       }

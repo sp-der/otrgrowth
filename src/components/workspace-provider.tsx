@@ -8,7 +8,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { LocalWorkspaceRepository } from "@/lib/data/local-repository";
+import { SupabaseWorkspaceRepository } from "@/lib/data/supabase-repository";
 import type { WorkspaceRepository } from "@/lib/data/repository";
 import {
   workspaceSchema,
@@ -23,10 +23,10 @@ type Context = {
   select: (id: string) => Promise<void>;
 };
 const WorkspaceContext = createContext<Context | null>(null);
-const localRepository = new LocalWorkspaceRepository();
+const supabaseRepository = new SupabaseWorkspaceRepository();
 export function WorkspaceProvider({
   children,
-  repository = localRepository,
+  repository = supabaseRepository,
 }: {
   children: ReactNode;
   repository?: WorkspaceRepository;
@@ -45,10 +45,12 @@ export function WorkspaceProvider({
           setData(value);
         }
       })
-      .catch(() => {
+      .catch((err: unknown) => {
         if (active)
           setError(
-            "Your local workspace could not be loaded. Enable browser storage or restore a valid saved workspace. Existing data has not been overwritten.",
+            err instanceof Error
+              ? err.message
+              : "Your synced workspace could not be loaded. Existing cloud data has not been overwritten.",
           );
       });
     return () => {
@@ -81,7 +83,7 @@ export function WorkspaceProvider({
     return (
       <div className="load-screen" role="status">
         <span className="brand-mark">↗</span>
-        <p>Opening your workspace…</p>
+        <p>Opening your synced workspace…</p>
       </div>
     );
   const business =

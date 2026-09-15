@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { AuthGate } from "@/components/auth-gate";
 import { WorkspaceProvider } from "@/components/workspace-provider";
 import { Shell } from "@/components/shell";
 import "./globals.css";
@@ -16,9 +17,11 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body>
-        <WorkspaceProvider>
-          <Shell>{children}</Shell>
-        </WorkspaceProvider>
+        <AuthGate>
+          <WorkspaceProvider>
+            <Shell>{children}</Shell>
+          </WorkspaceProvider>
+        </AuthGate>
       </body>
     </html>
   );
