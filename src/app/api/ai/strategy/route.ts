@@ -37,14 +37,19 @@ const isSameOrigin = (request: Request) => {
   return origin.origin === requestUrl.origin;
 };
 
-export async function POST(request: Request) {
+type Authenticator = (request: Request) => Promise<string | null>;
+
+export async function handleStrategyRequest(
+  request: Request,
+  authenticate: Authenticator = verifyAccessToken,
+) {
   if (!isSameOrigin(request))
     return json(
       { code: "FORBIDDEN", error: "Cross-origin requests are not allowed." },
       403,
     );
 
-  if (!(await verifyAccessToken(request)))
+  if (!(await authenticate(request)))
     return json(
       { code: "UNAUTHORIZED", error: "Sign in to generate a strategy." },
       401,
@@ -108,4 +113,8 @@ export async function POST(request: Request) {
       500,
     );
   }
+}
+
+export async function POST(request: Request) {
+  return handleStrategyRequest(request);
 }
