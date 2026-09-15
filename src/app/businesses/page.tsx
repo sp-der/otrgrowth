@@ -40,7 +40,7 @@ export default function Businesses() {
       setAdding(false);
     } catch {
       setMessage(
-        "Could not add this business. Check its name and browser storage, then retry.",
+        "Could not add this business. Check its name and cloud connection, then retry.",
       );
     } finally {
       setSaving(false);
@@ -92,7 +92,7 @@ export default function Businesses() {
           {data.businesses.length}{" "}
           {data.businesses.length === 1 ? "BUSINESS" : "BUSINESSES"}
         </span>
-        <small>Saved in this browser</small>
+        <small>Synced to Supabase</small>
       </div>
       <div className="business-list">
         {data.businesses.map((b) => (
@@ -127,7 +127,7 @@ export default function Businesses() {
                   onClick={() =>
                     void select(b.id).catch(() =>
                       setMessage(
-                        "Could not select this business. Check browser storage.",
+                        "Could not select this business. Check the cloud connection.",
                       ),
                     )
                   }
