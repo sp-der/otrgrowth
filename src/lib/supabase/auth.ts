@@ -21,6 +21,8 @@ type AuthPayload = {
   expires_at?: unknown;
   user?: unknown;
   msg?: unknown;
+  message?: unknown;
+  code?: unknown;
   error?: unknown;
   error_description?: unknown;
 };
@@ -112,10 +114,16 @@ async function readAuthError(response: Response) {
   try {
     payload = (await response.json()) as AuthPayload;
   } catch {}
-  for (const value of [payload.msg, payload.error_description, payload.error]) {
+  for (const value of [
+    payload.message,
+    payload.msg,
+    payload.error_description,
+    payload.error,
+    payload.code,
+  ]) {
     if (typeof value === "string" && value.trim()) return value;
   }
-  return "Authentication request failed. Please try again.";
+  return `Authentication request failed (${response.status}). Please try again.`;
 }
 
 async function refreshSession(current: StoredSession) {
