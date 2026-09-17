@@ -1,0 +1,6 @@
+fastapi==0.116.1
+uvicorn==0.35.0
+pydantic==2.11.7
+httpx==0.28.1
+pytest==8.4.1
+claude-ads-core @ git+https://github.com/AgriciDaniel/claude-ads.git@ac21644933910419529bcf81efb95a9ca71edf81
