@@ -205,3 +205,7 @@ Gateway responses are capped at 256 KB. Failed generations do not overwrite the 
 5. Team access, stronger account recovery/MFA and operational audit tooling as needed.
 
 This repository is independent of `sp-der/otrai` and the FreeLLMAPI upstream repository.
+
+## Creative and Ads Intelligence engines
+
+This branch adds Creative Studio, optional Creative DNA, durable render jobs, and a separate pinned Claude Ads core service. See [HyperFrames setup and deployment](docs/hyperframes.md) and [Ads Engine setup, evidence semantics, and Meta roadmap](docs/ads-engine.md). Apply the new migration and configure the separate services before using these features in a deployed workspace. No external ad account changes are enabled.

@@ -1,1 +1,1 @@
-{"name":"otr-render-worker","private":true,"type":"module","engines":{"node":">=22"},"scripts":{"start":"node --import ../../node_modules/tsx/dist/loader.mjs worker.ts"},"dependencies":{"hyperframes":"0.8.46"}}
+{"name":"otr-render-worker","private":true,"type":"module","engines":{"node":">=22"},"scripts":{"start":"node --import ../../node_modules/tsx/dist/loader.mjs worker.ts"},"dependencies":{"hyperframes":"0.8.46","zod":"4.3.6"}}
