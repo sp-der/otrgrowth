@@ -25,4 +25,6 @@ Branch: `feature/hyperframes-claude-ads`. Production `main` was not merged or mo
 
 The hosted HyperFrames queue/render/storage path is now verified against the production OTR Growth Supabase project and Railway worker. The hosted Ads Engine itself is healthy. A full authenticated Next.js → Ads Engine audit request is the remaining hosted integration check before merge.
 
+Preview environment variables for Supabase and the hosted Ads Engine were configured in Vercel on 2026-09-17, and this commit triggers a fresh feature-branch preview build so public client variables are compiled into the browser bundle.
+
 No live ad-account connection, autonomous publishing, or spend mutation is enabled. Human approval remains required, and external ad-platform execution is intentionally out of scope for this milestone.
