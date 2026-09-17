@@ -1,5 +1,6 @@
 "use client";
 import Link from "next/link";
+import { CreativeDNAFields } from "@/components/creative-dna-fields";
 import { useEffect, useState, type FormEvent } from "react";
 import { ArrowUpRight, Fingerprint, Save } from "lucide-react";
 import { useWorkspace, recordActivity } from "@/components/workspace-provider";
@@ -146,6 +147,7 @@ export default function BusinessDNA() {
               </div>
             </section>
           ))}
+          <CreativeDNAFields value={profile.creativeDNA} onChange={creativeDNA => setProfile(p => ({...p, creativeDNA}))}/>
           <Feedback message={message} error={failed} />
           <div className="save-bar">
             <span>

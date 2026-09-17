@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { creativeDNASchema, studioSchema } from "../creative/schemas";
 
 const text = z.string().trim().max(5000);
 const short = z.string().trim().max(200);
@@ -7,6 +8,7 @@ const web = z.union([
   z.url().refine((v) => /^https?:\/\//i.test(v), "Use an http or https URL"),
 ]);
 export const businessProfileSchema = z.object({
+  creativeDNA: creativeDNASchema.optional(),
   businessName: short.min(1, "Business name is required"),
   industry: short,
   description: text,
@@ -142,6 +144,7 @@ export const campaignSchema = z.object({
 });
 export type Campaign = z.infer<typeof campaignSchema>;
 export const creativeSchema = z.object({
+  studio: studioSchema.optional(),
   id: z.uuid(),
   businessId: z.uuid(),
   campaignId: z.uuid(),
@@ -197,7 +200,7 @@ export const profileSections: {
   title: string;
   description: string;
   fields: {
-    key: keyof BusinessProfile;
+    key: Exclude<keyof BusinessProfile, "creativeDNA">;
     label: string;
     multiline?: boolean;
     placeholder?: string;
