@@ -25,6 +25,8 @@ const navigation = [
   ["/strategist", "Strategist", Sparkles],
   ["/content", "Content", Layers3],
   ["/campaigns", "Campaigns", Megaphone],
+  ["/creative-studio", "Creative Studio", Layers3],
+  ["/ads-intelligence", "Ads Intelligence", Sparkles],
   ["/analytics", "Analytics", ChartNoAxesCombined],
 ] as const;
 export function Shell({ children }: { children: ReactNode }) {
