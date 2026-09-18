@@ -8,6 +8,7 @@ COPY services/render-worker/package.json services/render-worker/package-lock.jso
 RUN npm ci --prefix services/render-worker
 COPY --chown=node:node src/lib/creative ./src/lib/creative
 COPY --chown=node:node src/lib/domain ./src/lib/domain
+COPY --chown=node:node public/creative-assets ./public/creative-assets
 COPY --chown=node:node services/render-worker/*.ts ./services/render-worker/
 USER node
 WORKDIR /app/services/render-worker
