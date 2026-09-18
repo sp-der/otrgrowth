@@ -6,6 +6,7 @@ import {
   existsSync,
   writeFileSync,
   rmSync,
+  statSync,
 } from "node:fs";
 import { resolve, join } from "node:path";
 
@@ -419,11 +420,55 @@ async function verifyOfficialStudio() {
     if (!projectsResponse.ok || !Array.isArray(projects?.projects) || projects.projects.length < 1) {
       throw new Error("Official HyperFrames Studio project API smoke failed.");
     }
+
+    const renderOutput = "/tmp/otr-hyperframes-official-smoke.mp4";
+    rmSync(renderOutput, { force: true });
+    const render = spawnSync(
+      CLI,
+      [
+        "render",
+        SMOKE_DIR,
+        "--output",
+        renderOutput,
+        "--fps",
+        "6",
+        "--quality",
+        "draft",
+        "--workers",
+        "1",
+        "--no-browser-gpu",
+      ],
+      {
+        env: {
+          ...process.env,
+          CONTAINER: "true",
+          HYPERFRAMES_NO_UPDATE_CHECK: "1",
+          PUPPETEER_EXECUTABLE_PATH:
+            process.env.PUPPETEER_EXECUTABLE_PATH || "/usr/bin/chromium",
+          CI: "1",
+        },
+        encoding: "utf8",
+        timeout: 180_000,
+      },
+    );
+    if (render.status !== 0 || !existsSync(renderOutput)) {
+      throw new Error(
+        `Official HyperFrames render smoke failed: ${(render.stderr || render.stdout || "").slice(-1800)}`,
+      );
+    }
+    const renderBytes = statSync(renderOutput).size;
+    if (renderBytes < 1024) {
+      throw new Error(`Official HyperFrames render smoke produced only ${renderBytes} bytes.`);
+    }
+    rmSync(renderOutput, { force: true });
+
     return {
       ok: true,
       hyperframes: "0.8.48",
       studioBundle: true,
       projectApi: true,
+      renderPipeline: true,
+      renderSmokeBytes: renderBytes,
     };
   } catch (error) {
     throw new Error(
