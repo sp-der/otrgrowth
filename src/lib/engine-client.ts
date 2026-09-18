@@ -31,15 +31,3 @@ export function engineDB<T>(path: string, init: RequestInit = {}) {
     headers: { apikey: publishableKey, ...init.headers },
   });
 }
-export async function signedRender(path: string) {
-  const { url, publishableKey } = getSupabaseConfig();
-  const result = await engineRequest<{ signedURL: string }>(
-    `${url}/storage/v1/object/sign/creative-renders/${path}`,
-    {
-      method: "POST",
-      headers: { apikey: publishableKey },
-      body: JSON.stringify({ expiresIn: 300 }),
-    },
-  );
-  return `${url}/storage/v1${result.signedURL}`;
-}

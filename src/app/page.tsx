@@ -17,7 +17,7 @@ export default function Dashboard() {
   const metrics = aggregateMetrics(
     data.metrics.filter((i) => i.businessId === business.id),
   );
-  const filled = Object.values(business.profile).filter((v) => typeof v === "string" && v.trim()).length;
+  const filled = Object.values(business.profile).filter((v) => v.trim()).length;
   const completion = Math.round(
     (filled / Object.keys(business.profile).length) * 100,
   );
