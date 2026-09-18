@@ -4,28 +4,20 @@ Branch: `feature/hyperframes-claude-ads`. Production `main` remains unmerged.
 
 | Check | Result |
 |---|---|
-| Root install | Passed |
-| Lint | Passed |
-| Typecheck | Passed |
-| JavaScript tests | 23 passing |
-| Production build | Passed |
-| Python Ads Engine tests | 7 passing |
-| Base engine migration | Applied to OTR Growth Supabase |
-| Creative assets migrations | Applied; `creative_assets` and private `creative-assets` bucket live |
-| RLS / ownership | Enabled for engine and creative asset tables |
-| Original hosted render | 15-second 1080×1920 render completed end to end |
-| Creative Engine V2 worker | Deployed successfully on Railway |
-| V2 media pipeline | Image/video/logo asset loading implemented |
-| V2 audio pipeline | FFmpeg music/voiceover mixing implemented |
-| V2 scene planner | Implemented with differentiated template strategies |
-| Creative Studio V2 UI | Asset library, scene timing/media/motion/transition controls, music controls, versioning and render review implemented |
-| Vercel preview | Latest feature preview builds successfully |
-| Ads Engine | Railway service healthy; Python tests passing |
+| Root install | Passed before renderer cleanup; rerun required on cleanup head |
+| Ads Engine | Railway service healthy |
+| Python Ads Engine tests | Passing |
+| Ads Intelligence API/UI | Implemented |
+| Owner-scoped audit persistence | Implemented |
+| Human recommendation decisions | Implemented |
+| Live ad mutations / spend actions | Disabled |
+| Custom HyperFrames renderer | Removed |
+| Creative Studio / render worker | Removed |
 
-## Hosted verification status
+## Cleanup direction
 
-The original authenticated Supabase → Railway → HyperFrames → private Storage path is already proven.
+The custom rendering stack was retired after output quality did not meet the product goal. OTR Growth now keeps Ads Intelligence independent from creative rendering. A future Content Portal can hand approved briefs/assets to an external rendering workflow without embedding a second renderer inside this repository.
 
-The V2 worker is deployed with media/audio support and the feature preview is live. A final owner-driven rich-media render should be performed from Creative Studio using uploaded assets before merging to `main`. This document does not claim that final authenticated V2 asset-upload render until it is actually observed.
+Historical migrations that were already applied remain in the migration ledger. A later cleanup migration removes the retired render tables, functions, storage policies, and buckets.
 
 No live ad-account mutation, autonomous publishing, or spend action is enabled.

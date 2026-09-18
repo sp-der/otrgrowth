@@ -206,6 +206,8 @@ Gateway responses are capped at 256 KB. Failed generations do not overwrite the 
 
 This repository is independent of `sp-der/otrai` and the FreeLLMAPI upstream repository.
 
-## Creative and Ads Intelligence engines
+## Ads Intelligence
 
-This branch adds Creative Studio, optional Creative DNA, durable render jobs, and a separate pinned Claude Ads core service. See [HyperFrames setup and deployment](docs/hyperframes.md) and [Ads Engine setup, evidence semantics, and Meta roadmap](docs/ads-engine.md). Apply the new migration and configure the separate services before using these features in a deployed workspace. No external ad account changes are enabled.
+This branch adds a separate evidence-backed Ads Intelligence service with owner-scoped audits, findings, recommendations, and human approval tracking. See [Ads Engine setup, evidence semantics, and Meta roadmap](docs/ads-engine.md).
+
+The previous custom creative-rendering / HyperFrames integration has been removed. OTR Growth will treat creative production as a separate content workflow rather than maintaining its own rendering engine. No external ad account changes, publishing, or spend actions are enabled.

@@ -1,26 +1,22 @@
 "use client";
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
 import { useWorkspace } from "@/components/workspace-provider";
 import { PageHeader, Feedback, Badge } from "@/components/ui";
 import {
   evidenceKeys,
   evidenceLabels,
   auditReportSchema,
-  recommendationSchema,
   type AuditReport,
   type Recommendation,
 } from "@/lib/ads/schemas";
 import { engineDB, engineRequest } from "@/lib/engine-client";
-import { replacementCreative } from "@/lib/ads/replacement";
 type RecRow = {
   id: string;
   status: "Suggested" | "In review" | "Approved" | "Rejected";
   payload: Recommendation;
 };
 export default function AdsIntelligence() {
-  const { business, data, update } = useWorkspace();
-  const router = useRouter();
+  const { business, data } = useWorkspace();
   const campaigns = data.campaigns.filter((c) => c.businessId === business.id);
   const [campaignId, setCampaignId] = useState("");
   const [evidence, setEvidence] = useState<Record<string, boolean | null>>({});
@@ -104,20 +100,6 @@ export default function AdsIntelligence() {
     });
     setRecs((r) => r.map((x) => (x.id === row.id ? { ...x, status } : x)));
     setMessage("Decision recorded. External execution remains disabled.");
-  }
-  async function replace(row: RecRow) {
-    const rec = recommendationSchema.parse(row.payload);
-    const campaign = campaigns.find((c) => c.id === rec.campaignId);
-    if (!campaign)
-      throw new Error("Select a valid campaign for replacement creative.");
-    const existing = data.creatives.find(
-      (c) => c.studio?.brief.recommendationId === rec.id,
-    );
-    if (!existing) {
-      const creative = replacementCreative(rec, business, campaign);
-      await update((w) => ({ ...w, creatives: [...w.creatives, creative] }));
-    }
-    router.push("/creative-studio");
   }
   return (
     <>
@@ -319,16 +301,6 @@ export default function AdsIntelligence() {
                   {s}
                 </button>
               ))}
-              {row.payload.proposedAction === "refresh_creative" &&
-                row.status !== "Rejected" && (
-                  <button
-                    className="button primary"
-                    disabled={busy}
-                    onClick={() => void task(() => replace(row))}
-                  >
-                    Generate replacement creative
-                  </button>
-                )}
             </div>
           </article>
         ))}
