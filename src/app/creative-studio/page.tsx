@@ -31,8 +31,8 @@ const initial = briefSchema.parse({
   aspectRatio: "9:16",
   durationSeconds: 15,
   template: "Service Promo",
-  hook: "",
-  bodyCopy: "",
+  hook: "Lead with the strongest reason to care.",
+  bodyCopy: "Show the value clearly and keep the message focused.",
   cta: "Learn more",
   scenes: [{ text: "", durationSeconds: 3 }],
 });
