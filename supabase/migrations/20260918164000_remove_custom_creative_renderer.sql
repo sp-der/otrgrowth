@@ -11,6 +11,10 @@ end $$;
 drop function if exists public.check_render_transition();
 drop function if exists public.claim_creative_render();
 
+drop policy if exists creative_output_read on storage.objects;
+drop policy if exists creative_asset_download on storage.objects;
+drop policy if exists creative_asset_upload on storage.objects;
+
 drop table if exists public.creative_render_jobs cascade;
 drop table if exists public.creative_assets cascade;
 
