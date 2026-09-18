@@ -172,8 +172,8 @@ export const briefSchema = z.object({
   cta: copy.min(1),
   scenes: z.array(sceneSchema).min(1).max(12),
   sourceAssets: z.array(sourceAssetSchema).max(50).default([]),
-  audio: audioSchema.default({}),
-  motion: motionSettingsSchema.default({}),
+  audio: audioSchema.default({\n    musicVolume: 0.24,\n    voiceoverVolume: 1,\n    fadeIn: 0.35,\n    fadeOut: 0.7,\n  }),
+  motion: motionSettingsSchema.default({\n    pacing: "Balanced",\n    transitionStyle: "Clean",\n    visualStyle: "Clean",\n    motionIntensity: "Balanced",\n  }),
   recommendationId: z.uuid().optional(),
 });
 export type CreativeBrief = z.infer<typeof briefSchema>;
