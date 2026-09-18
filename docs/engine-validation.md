@@ -1,30 +1,31 @@
 # Implementation verification
 
-Branch: `feature/hyperframes-claude-ads`. Production `main` was not merged or modified by the integration work.
+Branch: `feature/hyperframes-claude-ads`. Production `main` remains unmerged.
 
 | Check | Result |
 |---|---|
-| Root `npm install` | Passed |
-| Worker install | Passed, pinned HyperFrames 0.8.46; optional CUDA download skipped using upstream-supported setting |
-| `npm run lint` | Passed |
-| `npm run typecheck` | Passed |
-| `npm test` | 21 passing tests, including existing tests |
-| `npm run build` | Passed; both screens and API routes generated |
-| Python `pytest -q` | 7 passing tests; one upstream AnyIO deprecation warning |
-| Python compileall | Passed |
-| Migration execution | Passed locally and applied to the OTR Growth Supabase project on 2026-09-17 |
-| RLS/ownership | Cross-owner reads/inserts denied; worker claims restricted; output/state constraints tested |
-| Local render | Real HyperFrames H.264 output, 1080×1080, 3 seconds, 66,398 bytes; FFprobe and visual frame inspection |
-| Hosted render | Passed end to end on 2026-09-17: 15-second 1080×1920 (9:16) Creative Studio job queued in Supabase, claimed by the Railway render worker, rendered with HyperFrames/Chromium/FFmpeg, uploaded to private `creative-renders` storage, and marked `completed` with no error |
-| Hosted render artifact | `video/mp4`, 257,854 bytes, stored privately under the authenticated owner's prefix |
-| Railway render worker | Deployed and running the dedicated `worker.ts` process with Chromium and FFmpeg installed |
-| Railway Ads Engine | Deployed, `/health` returns 200, FastAPI/Uvicorn running successfully |
-| Browser flow | Draft save → render queue → approval → audit → replacement creative passed with fixture network responses |
-| Responsive browser | 390-pixel viewport had no horizontal overflow; desktop/mobile captures inspected |
-| Secrets | Only example variable names are committed; renderer and Ads Engine secrets remain server-only |
+| Root install | Passed |
+| Lint | Passed |
+| Typecheck | Passed |
+| JavaScript tests | 23 passing |
+| Production build | Passed |
+| Python Ads Engine tests | 7 passing |
+| Base engine migration | Applied to OTR Growth Supabase |
+| Creative assets migrations | Applied; `creative_assets` and private `creative-assets` bucket live |
+| RLS / ownership | Enabled for engine and creative asset tables |
+| Original hosted render | 15-second 1080×1920 render completed end to end |
+| Creative Engine V2 worker | Deployed successfully on Railway |
+| V2 media pipeline | Image/video/logo asset loading implemented |
+| V2 audio pipeline | FFmpeg music/voiceover mixing implemented |
+| V2 scene planner | Implemented with differentiated template strategies |
+| Creative Studio V2 UI | Asset library, scene timing/media/motion/transition controls, music controls, versioning and render review implemented |
+| Vercel preview | Latest feature preview builds successfully |
+| Ads Engine | Railway service healthy; Python tests passing |
 
-The hosted HyperFrames queue/render/storage path is now verified against the production OTR Growth Supabase project and Railway worker. The hosted Ads Engine itself is healthy. A full authenticated Next.js → Ads Engine audit request is the remaining hosted integration check before merge.
+## Hosted verification status
 
-Preview environment variables for Supabase and the hosted Ads Engine were configured in Vercel on 2026-09-17, and this commit triggers a fresh feature-branch preview build so public client variables are compiled into the browser bundle.
+The original authenticated Supabase → Railway → HyperFrames → private Storage path is already proven.
 
-No live ad-account connection, autonomous publishing, or spend mutation is enabled. Human approval remains required, and external ad-platform execution is intentionally out of scope for this milestone.
+The V2 worker is deployed with media/audio support and the feature preview is live. A final owner-driven rich-media render should be performed from Creative Studio using uploaded assets before merging to `main`. This document does not claim that final authenticated V2 asset-upload render until it is actually observed.
+
+No live ad-account mutation, autonomous publishing, or spend action is enabled.
