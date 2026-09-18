@@ -73,6 +73,14 @@ function encodedPath(path: string) {
     .join("/");
 }
 
+function mergeSourceAssets(...lists: SourceAsset[][]) {
+  const byId = new Map<string, SourceAsset>();
+  for (const list of lists) {
+    for (const asset of list) byId.set(asset.id, asset);
+  }
+  return [...byId.values()];
+}
+
 export default function CreativeStudio() {
   const { business, data, update } = useWorkspace();
   const campaigns = data.campaigns.filter((c) => c.businessId === business.id);
@@ -94,17 +102,21 @@ export default function CreativeStudio() {
   );
 
   const sourceAssets = useMemo(() => assets.map(sourceAsset), [assets]);
+  const availableAssets = useMemo(
+    () => mergeSourceAssets(brief.sourceAssets, sourceAssets),
+    [brief.sourceAssets, sourceAssets],
+  );
   const visualAssets = useMemo(
-    () => sourceAssets.filter((asset) => asset.kind === "image" || asset.kind === "video"),
-    [sourceAssets],
+    () => availableAssets.filter((asset) => asset.kind === "image" || asset.kind === "video"),
+    [availableAssets],
   );
   const logoAssets = useMemo(
-    () => sourceAssets.filter((asset) => asset.kind === "logo"),
-    [sourceAssets],
+    () => availableAssets.filter((asset) => asset.kind === "logo"),
+    [availableAssets],
   );
   const audioAssets = useMemo(
-    () => sourceAssets.filter((asset) => asset.kind === "audio"),
-    [sourceAssets],
+    () => availableAssets.filter((asset) => asset.kind === "audio"),
+    [availableAssets],
   );
 
   useEffect(() => {
@@ -125,7 +137,10 @@ export default function CreativeStudio() {
         setAssets(parsedAssets);
         setBrief((current) => ({
           ...current,
-          sourceAssets: parsedAssets.map(sourceAsset),
+          sourceAssets: mergeSourceAssets(
+            current.sourceAssets.filter((asset) => asset.storagePath.startsWith("bundled/")),
+            parsedAssets.map(sourceAsset),
+          ),
         }));
       } catch (error) {
         if (active) {
@@ -239,14 +254,20 @@ export default function CreativeStudio() {
     setAssets(next);
     setBrief((current) => ({
       ...current,
-      sourceAssets: next.map(sourceAsset),
+      sourceAssets: mergeSourceAssets(
+        current.sourceAssets.filter((asset) => asset.storagePath.startsWith("bundled/")),
+        next.map(sourceAsset),
+      ),
     }));
     setMessage(`${assetKind} uploaded and ready for scene planning.`);
   }
 
   async function save() {
     if (!campaign) throw new Error("Choose a campaign first.");
-    const parsedBrief = briefSchema.parse({ ...brief, sourceAssets });
+    const parsedBrief = briefSchema.parse({
+      ...brief,
+      sourceAssets: mergeSourceAssets(brief.sourceAssets, sourceAssets),
+    });
     const creative = creativeSchema.parse({
       id: crypto.randomUUID(),
       businessId: business.id,
