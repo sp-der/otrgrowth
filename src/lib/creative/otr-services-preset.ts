@@ -35,7 +35,7 @@ export function otrServicesPortfolioBrief(): CreativeBrief {
       {
         type: "hook",
         durationSeconds: 3,
-        text: "Your business deserves more than a template.",
+        text: "Your business deserves a site that feels like yours.",
         subtext: "Websites built to represent the brand behind them.",
         logoEnabled: true,
         textPosition: "center",
