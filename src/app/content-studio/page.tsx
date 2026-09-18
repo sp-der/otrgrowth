@@ -12,18 +12,21 @@ type SessionResponse = {
   error?: string;
 };
 
-export default function ContentStudioPage() {
-  const { business } = useWorkspace();
+function StudioFrame({
+  businessId,
+  businessName,
+  revision,
+}: {
+  businessId: string;
+  businessName: string;
+  revision: number;
+}) {
   const [src, setSrc] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
-  const [revision, setRevision] = useState(0);
 
   useEffect(() => {
     let active = true;
-    setLoading(true);
-    setError("");
-    setSrc("");
 
     async function connect() {
       const token = await getAccessToken();
@@ -35,7 +38,7 @@ export default function ContentStudioPage() {
           Authorization: `Bearer ${token}`,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ businessId: business.id }),
+        body: JSON.stringify({ businessId }),
         cache: "no-store",
       });
       const payload = (await response.json()) as SessionResponse;
@@ -44,7 +47,9 @@ export default function ContentStudioPage() {
       }
 
       if (active) {
-        setSrc(`${payload.studioPath}?business=${business.id}&r=${revision}`);
+        setSrc(
+          `${payload.studioPath}?business=${encodeURIComponent(businessId)}&r=${revision}`,
+        );
         setLoading(false);
       }
     }
@@ -52,13 +57,47 @@ export default function ContentStudioPage() {
     void connect().catch((reason: unknown) => {
       if (!active) return;
       setLoading(false);
-      setError(reason instanceof Error ? reason.message : "Content Studio could not start.");
+      setError(
+        reason instanceof Error
+          ? reason.message
+          : "Content Studio could not start.",
+      );
     });
 
     return () => {
       active = false;
     };
-  }, [business.id, revision]);
+  }, [businessId, revision]);
+
+  return (
+    <section className="studio-frame-shell" aria-busy={loading}>
+      {loading && (
+        <div className="studio-frame-state" role="status">
+          <span className="status-dot" />
+          Connecting the official HyperFrames Studio…
+        </div>
+      )}
+      {error && (
+        <div className="studio-frame-state error" role="alert">
+          <strong>Content Studio unavailable</strong>
+          <span>{error}</span>
+        </div>
+      )}
+      {src && !error && (
+        <iframe
+          className="studio-frame"
+          src={src}
+          title={`HyperFrames Studio for ${businessName}`}
+          allow="clipboard-read; clipboard-write; fullscreen"
+        />
+      )}
+    </section>
+  );
+}
+
+export default function ContentStudioPage() {
+  const { business } = useWorkspace();
+  const [revision, setRevision] = useState(0);
 
   return (
     <>
@@ -71,7 +110,6 @@ export default function ContentStudioPage() {
             className="button"
             type="button"
             onClick={() => setRevision((value) => value + 1)}
-            disabled={loading}
           >
             <RefreshCw size={16} /> Refresh Studio
           </button>
@@ -88,41 +126,22 @@ export default function ContentStudioPage() {
           HyperFrames 0.8.48
         </span>
         <span className="muted">
-          Project: {business.profile.businessName} · #{String(business.number).padStart(3, "0")}
+          Project: {business.profile.businessName} · #
+          {String(business.number).padStart(3, "0")}
         </span>
       </div>
 
-      <section className="studio-frame-shell" aria-busy={loading}>
-        {loading && (
-          <div className="studio-frame-state" role="status">
-            <span className="status-dot" />
-            Connecting the official HyperFrames Studio…
-          </div>
-        )}
-        {error && (
-          <div className="studio-frame-state error" role="alert">
-            <strong>Content Studio unavailable</strong>
-            <span>{error}</span>
-            <button className="button" onClick={() => setRevision((value) => value + 1)}>
-              Try again
-            </button>
-          </div>
-        )}
-        {src && !error && (
-          <iframe
-            key={src}
-            className="studio-frame"
-            src={src}
-            title={`HyperFrames Studio for ${business.profile.businessName}`}
-            allow="clipboard-read; clipboard-write; fullscreen"
-          />
-        )}
-      </section>
+      <StudioFrame
+        key={`${business.id}:${revision}`}
+        businessId={business.id}
+        businessName={business.profile.businessName}
+        revision={revision}
+      />
 
       <p className="studio-footnote">
-        OTR Growth supplies the authenticated business context. Editing, timeline behavior,
-        preview, checks, media handling, and rendering are provided by the official
-        HyperFrames project.
+        OTR Growth supplies the authenticated business context. Editing, timeline
+        behavior, preview, checks, media handling, and rendering are provided by
+        the official HyperFrames project.
       </p>
     </>
   );
