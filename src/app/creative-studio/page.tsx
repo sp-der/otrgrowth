@@ -24,6 +24,7 @@ import { buildComposition } from "@/lib/creative/composition-builder";
 import { creativeSchema, type Creative } from "@/lib/domain/schemas";
 import { engineDB, engineRequest, signedRender } from "@/lib/engine-client";
 import { getSupabaseConfig } from "@/lib/supabase/config";
+import { getCurrentUser } from "@/lib/supabase/auth";
 
 const initial = briefSchema.parse({
   platform: "Instagram",
@@ -196,9 +197,11 @@ export default function CreativeStudio() {
   }
 
   async function uploadAsset(file: File) {
+    const owner = await getCurrentUser();
+    if (!owner) throw new Error("Sign in to upload creative assets.");
     const id = crypto.randomUUID();
     const ext = extensionFor(file);
-    const storagePath = `${business.id}/${id}.${ext}`;
+    const storagePath = `${owner.id}/${business.id}/${id}.${ext}`;
     const inserted = creativeAssetRowSchema
       .array()
       .parse(
