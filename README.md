@@ -210,4 +210,4 @@ This repository is independent of `sp-der/otrai` and the FreeLLMAPI upstream rep
 
 This branch adds a separate evidence-backed Ads Intelligence service with owner-scoped audits, findings, recommendations, and human approval tracking. See [Ads Engine setup, evidence semantics, and Meta roadmap](docs/ads-engine.md).
 
-The previous custom creative-rendering / HyperFrames integration has been removed. OTR Growth will treat creative production as a separate content workflow rather than maintaining its own rendering engine. No external ad account changes, publishing, or spend actions are enabled.
+The previous in-repo creative renderer has been retired. OTR Growth will treat creative production as a separate content workflow rather than maintaining its own rendering engine. No external ad account changes, publishing, or spend actions are enabled.

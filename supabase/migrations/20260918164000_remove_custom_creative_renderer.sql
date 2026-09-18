@@ -1,5 +1,11 @@
--- Retire the custom creative-rendering stack while preserving Ads Intelligence.
-drop trigger if exists render_transition on public.creative_render_jobs;
+-- Remove remnants of the retired in-repo creative renderer.
+do $$
+begin
+  if to_regclass('public.creative_render_jobs') is not null then
+    execute 'drop trigger if exists render_transition on public.creative_render_jobs';
+  end if;
+end $$;
+
 drop function if exists public.check_render_transition();
 drop function if exists public.claim_creative_render();
 
