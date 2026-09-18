@@ -5,6 +5,7 @@ import {
   mkdirSync,
   existsSync,
   writeFileSync,
+  rmSync,
 } from "node:fs";
 import { resolve, join } from "node:path";
 
@@ -17,6 +18,7 @@ const CLI = resolve(process.cwd(), "node_modules/.bin/hyperframes");
 const sessions = new Map();
 const pending = new Map();
 const authCache = new Map();
+const SMOKE_DIR = "/tmp/otr-hyperframes-official-smoke";
 
 if (!SUPABASE_URL || !SUPABASE_KEY) {
   throw new Error("SUPABASE_URL and SUPABASE_PUBLISHABLE_KEY are required.");
@@ -344,6 +346,98 @@ function proxy(request, response, port) {
   request.pipe(upstream);
 }
 
+async function verifyOfficialStudio() {
+  rmSync(SMOKE_DIR, { recursive: true, force: true });
+  mkdirSync(SMOKE_DIR, { recursive: true });
+
+  const init = spawnSync(
+    CLI,
+    [
+      "init",
+      SMOKE_DIR,
+      "--resolution",
+      "portrait",
+      "--non-interactive",
+      "--skip-skills",
+    ],
+    {
+      env: {
+        ...process.env,
+        HYPERFRAMES_NO_UPDATE_CHECK: "1",
+        CI: "1",
+      },
+      encoding: "utf8",
+      timeout: 120_000,
+    },
+  );
+  if (init.status !== 0) {
+    throw new Error(
+      `Official HyperFrames init smoke failed: ${(init.stderr || init.stdout || "").slice(-1200)}`,
+    );
+  }
+
+  const port = await freePort();
+  const child = spawn(
+    CLI,
+    [
+      "preview",
+      SMOKE_DIR,
+      "--port",
+      String(port),
+      "--foreground",
+      "--no-open",
+    ],
+    {
+      env: {
+        ...process.env,
+        HYPERFRAMES_NO_UPDATE_CHECK: "1",
+        PUPPETEER_EXECUTABLE_PATH:
+          process.env.PUPPETEER_EXECUTABLE_PATH || "/usr/bin/chromium",
+        CI: "1",
+      },
+      stdio: ["ignore", "pipe", "pipe"],
+    },
+  );
+
+  let stderr = "";
+  child.stderr.on("data", (chunk) => {
+    stderr += String(chunk);
+    if (stderr.length > 8000) stderr = stderr.slice(-8000);
+  });
+
+  try {
+    await waitUntilReady(port, child);
+    const studio = await fetch(`http://127.0.0.1:${port}/`);
+    const html = await studio.text();
+    if (!studio.ok || !html.includes('id="root"')) {
+      throw new Error(
+        `Official HyperFrames Studio smoke returned ${studio.status} without the Studio root.`,
+      );
+    }
+    const projectsResponse = await fetch(`http://127.0.0.1:${port}/api/projects`);
+    const projects = await projectsResponse.json();
+    if (!projectsResponse.ok || !Array.isArray(projects?.projects) || projects.projects.length < 1) {
+      throw new Error("Official HyperFrames Studio project API smoke failed.");
+    }
+    return {
+      ok: true,
+      hyperframes: "0.8.48",
+      studioBundle: true,
+      projectApi: true,
+    };
+  } catch (error) {
+    throw new Error(
+      `${error instanceof Error ? error.message : String(error)} ${stderr.slice(-1600)}`.trim(),
+    );
+  } finally {
+    child.kill("SIGTERM");
+    rmSync(SMOKE_DIR, { recursive: true, force: true });
+  }
+}
+
+const officialStudioSmoke = await verifyOfficialStudio();
+console.log("Official HyperFrames Studio smoke passed", officialStudioSmoke);
+
 const server = http.createServer(async (request, response) => {
   if (request.url === "/health") {
     response.writeHead(200, { "content-type": "application/json" });
@@ -351,7 +445,7 @@ const server = http.createServer(async (request, response) => {
       JSON.stringify({
         ok: true,
         service: "otr-hyperframes-host",
-        hyperframes: "0.8.48",
+        ...officialStudioSmoke,
         activeProjects: sessions.size,
       }),
     );
