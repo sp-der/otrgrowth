@@ -11,6 +11,7 @@ import {
   compositionHTML,
 } from "../src/lib/creative/composition-builder";
 import { generateScenePlan } from "../src/lib/creative/planner";
+import { otrServicesPortfolioBrief, OTR_PORTFOLIO_ASSETS } from "../src/lib/creative/otr-services-preset";
 import { canTransition } from "../src/lib/creative/render-jobs";
 import { replacementCreative } from "../src/lib/ads/replacement";
 import { recommendationSchema } from "../src/lib/ads/schemas";
@@ -233,4 +234,27 @@ test("recommendation creates reviewable version with correct ownership", () => {
     recommendationSchema.safeParse({ ...rec, requiresApproval: false }).success,
     false,
   );
+});
+
+
+test("OTR portfolio preset is a complete 30-second bundled-media reel", () => {
+  const w = seedWorkspace();
+  const campaign = w.campaigns[0];
+  const business = w.businesses.find((b) => b.id === campaign.businessId)!;
+  const preset = otrServicesPortfolioBrief();
+  assert.equal(preset.platform, "Instagram");
+  assert.equal(preset.aspectRatio, "9:16");
+  assert.equal(preset.durationSeconds, 30);
+  assert.equal(
+    Number(preset.scenes.reduce((sum, scene) => sum + scene.durationSeconds, 0).toFixed(2)),
+    30,
+  );
+  assert.equal(preset.sourceAssets.length, 5);
+  assert.ok(preset.sourceAssets.every((asset) => asset.storagePath.startsWith("bundled/")));
+  assert.equal(OTR_PORTFOLIO_ASSETS[0].kind, "logo");
+  const composition = buildComposition(business, campaign, preset);
+  const html = compositionHTML(composition);
+  assert.ok(html.includes("assets/00000000-0000-4000-9000-000000000001.svg"));
+  assert.ok(html.includes("Pressed In Pink"));
+  assert.ok(html.includes("@otrservicesie"));
 });
