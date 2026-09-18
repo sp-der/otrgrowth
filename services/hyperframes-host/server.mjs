@@ -5,7 +5,6 @@ import {
   mkdirSync,
   existsSync,
   writeFileSync,
-  readFileSync,
 } from "node:fs";
 import { resolve, join } from "node:path";
 
