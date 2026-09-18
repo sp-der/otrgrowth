@@ -20,6 +20,7 @@ import {
   type SourceAsset,
 } from "@/lib/creative/schemas";
 import { templateBrief } from "@/lib/creative/templates";
+import { otrServicesPortfolioBrief } from "@/lib/creative/otr-services-preset";
 import { buildComposition } from "@/lib/creative/composition-builder";
 import { creativeSchema, type Creative } from "@/lib/domain/schemas";
 import { engineDB, engineRequest, signedRender } from "@/lib/engine-client";
@@ -281,6 +282,14 @@ export default function CreativeStudio() {
     setMessage("Queued for HyperFrames rendering. Status refreshes automatically.");
   }
 
+  function loadOtrPortfolioAd() {
+    setBrief(otrServicesPortfolioBrief());
+    setTitle("OTR Services · Portfolio Reel · Instagram 30s");
+    setSceneIndex(0);
+    setVideo("");
+    setMessage("Loaded the built-in OTR Services 30-second Instagram portfolio ad.");
+  }
+
   function generatePlan() {
     if (!campaign) return;
     setBrief(
@@ -468,6 +477,11 @@ export default function CreativeStudio() {
                 ))}
               </div>
               <div className="engine-actions">
+                {business.profile.businessName === "OTR Services" && (
+                  <button className="button" disabled={busy} onClick={loadOtrPortfolioAd}>
+                    Load OTR portfolio ad
+                  </button>
+                )}
                 <button className="button" disabled={!campaign || busy} onClick={generatePlan}>
                   Generate scene plan
                 </button>
