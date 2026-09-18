@@ -291,6 +291,8 @@ async function startPreview(context) {
           HYPERFRAMES_NO_UPDATE_CHECK: "1",
           PUPPETEER_EXECUTABLE_PATH:
             process.env.PUPPETEER_EXECUTABLE_PATH || "/usr/bin/chromium",
+          HYPERFRAMES_BROWSER_PATH:
+            process.env.HYPERFRAMES_BROWSER_PATH || "/usr/bin/chromium",
           CI: "1",
         },
         stdio: ["ignore", "pipe", "pipe"],
@@ -445,6 +447,8 @@ async function verifyOfficialStudio() {
           HYPERFRAMES_NO_UPDATE_CHECK: "1",
           PUPPETEER_EXECUTABLE_PATH:
             process.env.PUPPETEER_EXECUTABLE_PATH || "/usr/bin/chromium",
+          HYPERFRAMES_BROWSER_PATH:
+            process.env.HYPERFRAMES_BROWSER_PATH || "/usr/bin/chromium",
           CI: "1",
         },
         encoding: "utf8",
