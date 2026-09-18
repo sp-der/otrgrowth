@@ -211,3 +211,10 @@ This repository is independent of `sp-der/otrai` and the FreeLLMAPI upstream rep
 This branch adds a separate evidence-backed Ads Intelligence service with owner-scoped audits, findings, recommendations, and human approval tracking. See [Ads Engine setup, evidence semantics, and Meta roadmap](docs/ads-engine.md).
 
 The previous in-repo creative renderer has been retired. OTR Growth will treat creative production as a separate content workflow rather than maintaining its own rendering engine. No external ad account changes, publishing, or spend actions are enabled.
+
+
+## Content Studio
+
+The Content Studio embeds the official HyperFrames project workflow inside OTR Growth at `/content-studio`. OTR Growth handles authentication and business context while the dedicated Railway host runs the pinned official HyperFrames `0.8.48` Studio/CLI pipeline. See [Content Studio architecture and deployment](docs/content-studio.md).
+
+The browser stays on the OTR Growth application. The HyperFrames host is an internal implementation service, not a separate user-facing site.
