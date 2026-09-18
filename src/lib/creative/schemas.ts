@@ -96,7 +96,7 @@ export const sourceAssetSchema = z.object({
   kind: z.enum(["image", "video", "logo", "audio"]),
   storagePath: z
     .string()
-    .regex(/^[a-zA-Z0-9_/-]+\.(png|jpg|jpeg|webp|mp4|webm|mp3|wav|m4a|ogg)$/),
+    .regex(/^[a-zA-Z0-9_/-]+\.(png|jpg|jpeg|webp|svg|mp4|webm|mp3|wav|m4a|ogg)$/),
   mimeType: z.string().max(120).optional(),
   width: z.number().int().positive().optional(),
   height: z.number().int().positive().optional(),
