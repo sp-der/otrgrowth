@@ -1,5 +1,7 @@
 import { renderComposition } from "./hyperframes";
 import { z } from "zod";
+import { readFile } from "node:fs/promises";
+import { resolve } from "node:path";
 
 const url = process.env.SUPABASE_URL;
 const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -31,6 +33,14 @@ function encodedStoragePath(path: string) {
 }
 
 async function loadCreativeAsset(storagePath: string) {
+  if (storagePath.startsWith("bundled/")) {
+    const fileName = storagePath.slice("bundled/".length);
+    if (!/^[a-z0-9-]+\.(svg|png|jpg|jpeg|webp)$/i.test(fileName)) {
+      throw new Error("Invalid bundled creative asset path.");
+    }
+    const root = resolve(import.meta.dirname, "../../public/creative-assets");
+    return readFile(resolve(root, fileName));
+  }
   const response = await fetch(
     url +
       "/storage/v1/object/authenticated/creative-assets/" +
