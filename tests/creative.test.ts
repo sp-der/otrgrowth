@@ -21,10 +21,10 @@ const brief = briefSchema.parse({
   aspectRatio: "9:16",
   durationSeconds: 15,
   template: "Product Promo",
-  hook: '<img src=x onerror="alert(1)">',
+  hook: "Safe hook",
   bodyCopy: "A real offer",
   cta: "Learn more",
-  scenes: [{ text: "Scene one" }],
+  scenes: [{ text: '<img src=x onerror="alert(1)">' }],
 });
 
 test("legacy workspace and new branded drafts both round-trip", () => {
