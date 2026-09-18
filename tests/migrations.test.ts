@@ -28,7 +28,7 @@ test("Ads migration is renderer-free and teardown removes retired creative infra
 
   assert.match(cleanup, /drop table if exists public\.creative_render_jobs/);
   assert.match(cleanup, /drop table if exists public\.creative_assets/);
-  assert.match(cleanup, /creative-renders/);
-  assert.match(cleanup, /creative-assets/);
   assert.match(cleanup, /payload = payload - 'studio'/);
+  assert.match(cleanup, /Storage API/);
+  assert.doesNotMatch(cleanup, /delete from storage\\.(objects|buckets)/);
 });
