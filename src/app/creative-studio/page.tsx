@@ -1,20 +1,31 @@
 "use client";
-import { useEffect, useState } from "react";
+
+import { useEffect, useMemo, useState } from "react";
 import { useWorkspace } from "@/components/workspace-provider";
 import { PageHeader, Feedback, Empty, Badge } from "@/components/ui";
 import {
+  animationPresets,
   briefSchema,
-  templates,
+  creativeAssetRowSchema,
   platforms,
   renderJobSchema,
+  sceneSchema,
+  sceneTypes,
+  templates,
+  transitionPresets,
+  type CreativeAssetRow,
   type CreativeBrief,
+  type CreativeScene,
   type RenderJob,
+  type SourceAsset,
 } from "@/lib/creative/schemas";
 import { templateBrief } from "@/lib/creative/templates";
 import { buildComposition } from "@/lib/creative/composition-builder";
 import { creativeSchema, type Creative } from "@/lib/domain/schemas";
 import { engineDB, engineRequest, signedRender } from "@/lib/engine-client";
-const initial: CreativeBrief = {
+import { getSupabaseConfig } from "@/lib/supabase/config";
+
+const initial = briefSchema.parse({
   platform: "Instagram",
   aspectRatio: "9:16",
   durationSeconds: 15,
@@ -22,9 +33,44 @@ const initial: CreativeBrief = {
   hook: "",
   bodyCopy: "",
   cta: "Learn more",
-  scenes: [{ text: "" }],
-  sourceAssets: [],
-};
+  scenes: [{ text: "", durationSeconds: 3 }],
+});
+
+function sourceAsset(row: CreativeAssetRow): SourceAsset {
+  return {
+    id: row.id,
+    label: row.label,
+    kind: row.kind,
+    storagePath: row.storage_path,
+    mimeType: row.mime_type,
+    width: row.width ?? undefined,
+    height: row.height ?? undefined,
+    durationSeconds: row.duration_seconds ?? undefined,
+  };
+}
+
+function extensionFor(file: File) {
+  const byMime: Record<string, string> = {
+    "image/png": "png",
+    "image/jpeg": "jpg",
+    "image/webp": "webp",
+    "video/mp4": "mp4",
+    "video/webm": "webm",
+    "audio/mpeg": "mp3",
+    "audio/wav": "wav",
+    "audio/mp4": "m4a",
+    "audio/ogg": "ogg",
+  };
+  return byMime[file.type] || file.name.split(".").at(-1)?.toLowerCase() || "bin";
+}
+
+function encodedPath(path: string) {
+  return path
+    .split("/")
+    .map((part) => encodeURIComponent(part))
+    .join("/");
+}
+
 export default function CreativeStudio() {
   const { business, data, update } = useWorkspace();
   const campaigns = data.campaigns.filter((c) => c.businessId === business.id);
@@ -33,31 +79,57 @@ export default function CreativeStudio() {
   const [title, setTitle] = useState("");
   const [selected, setSelected] = useState<Creative | null>(null);
   const [jobs, setJobs] = useState<RenderJob[]>([]);
+  const [assets, setAssets] = useState<CreativeAssetRow[]>([]);
+  const [assetKind, setAssetKind] = useState<CreativeAssetRow["kind"]>("image");
   const [video, setVideo] = useState("");
   const [message, setMessage] = useState("");
   const [failed, setFailed] = useState(false);
   const [busy, setBusy] = useState(false);
   const [sceneIndex, setSceneIndex] = useState(0);
+
   const creatives = data.creatives.filter(
     (c) => c.businessId === business.id && c.studio,
   );
+
+  const sourceAssets = useMemo(() => assets.map(sourceAsset), [assets]);
+  const visualAssets = useMemo(
+    () => sourceAssets.filter((asset) => asset.kind === "image" || asset.kind === "video"),
+    [sourceAssets],
+  );
+  const logoAssets = useMemo(
+    () => sourceAssets.filter((asset) => asset.kind === "logo"),
+    [sourceAssets],
+  );
+  const audioAssets = useMemo(
+    () => sourceAssets.filter((asset) => asset.kind === "audio"),
+    [sourceAssets],
+  );
+
   useEffect(() => {
     let active = true;
     async function refresh() {
       try {
-        const rows = renderJobSchema
-          .array()
-          .parse(
-            await engineDB(
-              `/creative_render_jobs?business_id=eq.${business.id}&select=id,creative_id,business_id,status,output_path,error,created_at&order=created_at.desc&limit=100`,
-            ),
-          );
-        if (active) setJobs(rows);
-      } catch (e) {
+        const [renderRows, assetRows] = await Promise.all([
+          engineDB(
+            `/creative_render_jobs?business_id=eq.${business.id}&select=id,creative_id,business_id,status,output_path,error,created_at&order=created_at.desc&limit=100`,
+          ),
+          engineDB(
+            `/creative_assets?business_id=eq.${business.id}&select=id,business_id,kind,label,storage_path,mime_type,width,height,duration_seconds,created_at&order=created_at.desc`,
+          ),
+        ]);
+        if (!active) return;
+        setJobs(renderJobSchema.array().parse(renderRows));
+        const parsedAssets = creativeAssetRowSchema.array().parse(assetRows);
+        setAssets(parsedAssets);
+        setBrief((current) => ({
+          ...current,
+          sourceAssets: parsedAssets.map(sourceAsset),
+        }));
+      } catch (error) {
         if (active) {
           setFailed(true);
           setMessage(
-            e instanceof Error ? e.message : "Render status unavailable",
+            error instanceof Error ? error.message : "Creative Studio data unavailable",
           );
         }
       }
@@ -69,279 +141,681 @@ export default function CreativeStudio() {
       clearInterval(timer);
     };
   }, [business.id]);
+
   const campaign = campaigns.find((c) => c.id === campaignId);
   const dirty =
     !selected ||
     title !== selected.title ||
     campaignId !== selected.campaignId ||
     JSON.stringify(brief) !== JSON.stringify(selected.studio?.brief);
+
   async function task(fn: () => Promise<void>) {
     setBusy(true);
     setFailed(false);
     setMessage("");
     try {
       await fn();
-    } catch (e) {
+    } catch (error) {
       setFailed(true);
-      setMessage(e instanceof Error ? e.message : "Could not save.");
+      setMessage(error instanceof Error ? error.message : "Could not complete that action.");
     } finally {
       setBusy(false);
     }
   }
-  function edit(c: Creative) {
-    setSelected(c);
-    setTitle(c.title);
-    setCampaignId(c.campaignId);
-    setBrief(c.studio!.brief);
+
+  function edit(creative: Creative) {
+    setSelected(creative);
+    setTitle(creative.title);
+    setCampaignId(creative.campaignId);
+    setBrief({
+      ...creative.studio!.brief,
+      sourceAssets,
+    });
     setVideo("");
     setSceneIndex(0);
   }
+
+  function updateScene(index: number, patch: Partial<CreativeScene>) {
+    setBrief((current) => ({
+      ...current,
+      scenes: current.scenes.map((scene, i) =>
+        i === index ? sceneSchema.parse({ ...scene, ...patch }) : scene,
+      ),
+    }));
+  }
+
+  function moveScene(index: number, direction: -1 | 1) {
+    setBrief((current) => {
+      const target = index + direction;
+      if (target < 0 || target >= current.scenes.length) return current;
+      const scenes = current.scenes.slice();
+      [scenes[index], scenes[target]] = [scenes[target], scenes[index]];
+      return { ...current, scenes };
+    });
+    setSceneIndex((current) => Math.max(0, current + direction));
+  }
+
+  async function uploadAsset(file: File) {
+    const id = crypto.randomUUID();
+    const ext = extensionFor(file);
+    const storagePath = `${business.id}/${id}.${ext}`;
+    const inserted = creativeAssetRowSchema
+      .array()
+      .parse(
+        await engineDB("/creative_assets", {
+          method: "POST",
+          headers: { Prefer: "return=representation" },
+          body: JSON.stringify({
+            id,
+            business_id: business.id,
+            kind: assetKind,
+            label: file.name.slice(0, 200),
+            storage_path: storagePath,
+            mime_type: file.type,
+          }),
+        }),
+      )[0];
+    if (!inserted) throw new Error("Asset metadata could not be created.");
+
+    const { url, publishableKey } = getSupabaseConfig();
+    await engineRequest(
+      `${url}/storage/v1/object/creative-assets/${encodedPath(storagePath)}`,
+      {
+        method: "POST",
+        headers: {
+          apikey: publishableKey,
+          "Content-Type": file.type,
+          "x-upsert": "false",
+        },
+        body: file,
+      },
+    );
+
+    const next = [inserted, ...assets];
+    setAssets(next);
+    setBrief((current) => ({
+      ...current,
+      sourceAssets: next.map(sourceAsset),
+    }));
+    setMessage(`${assetKind} uploaded and ready for scene planning.`);
+  }
+
   async function save() {
     if (!campaign) throw new Error("Choose a campaign first.");
-    const b = briefSchema.parse(brief);
-    const c = creativeSchema.parse({
+    const parsedBrief = briefSchema.parse({ ...brief, sourceAssets });
+    const creative = creativeSchema.parse({
       id: crypto.randomUUID(),
       businessId: business.id,
       campaignId: campaign.id,
-      title: title || `${b.template} · ${campaign.name}`,
+      title: title || `${parsedBrief.template} · ${campaign.name}`,
       concept: campaign.objective,
       format: "Video",
       status: "Concept",
       studio: {
-        brief: b,
-        composition: buildComposition(business, campaign, b),
+        brief: parsedBrief,
+        composition: buildComposition(business, campaign, parsedBrief),
         approval: "Draft",
         previousVersionId: selected?.id,
       },
     });
-    await update((w) => ({ ...w, creatives: [...w.creatives, c] }));
-    edit(c);
-    setMessage("New draft version saved. Previous versions are preserved.");
+    await update((workspace) => ({
+      ...workspace,
+      creatives: [...workspace.creatives, creative],
+    }));
+    edit(creative);
+    setMessage("New V2 draft saved. Previous versions are preserved.");
   }
+
   async function queue() {
-    if (!selected || dirty)
-      throw new Error("Save this version before rendering.");
+    if (!selected || dirty) throw new Error("Save this version before rendering.");
     const job = renderJobSchema.parse(
       await engineRequest("/api/creative/render", {
         method: "POST",
         body: JSON.stringify({ creativeId: selected.id }),
       }),
     );
-    setJobs((j) => [job, ...j.filter((x) => x.id !== job.id)]);
-    setMessage(
-      "Queued. A running render worker is required; status will refresh automatically.",
-    );
+    setJobs((current) => [job, ...current.filter((item) => item.id !== job.id)]);
+    setMessage("Queued for HyperFrames rendering. Status refreshes automatically.");
   }
-  const preview = [
-    brief.hook,
-    ...brief.scenes.map((s) => s.text),
-    brief.bodyCopy,
-    brief.cta,
-  ];
+
+  function generatePlan() {
+    if (!campaign) return;
+    setBrief(
+      templateBrief(brief.template, business, campaign, {
+        assets: sourceAssets,
+        durationSeconds: brief.durationSeconds,
+        platform: brief.platform,
+        aspectRatio: brief.aspectRatio,
+      }),
+    );
+    setSceneIndex(0);
+    setMessage("Scene plan generated from campaign, Creative DNA, timing and uploaded assets.");
+  }
+
   const dna =
     !dirty && selected?.studio
       ? selected.studio.composition.dna
       : business.profile.creativeDNA;
+  const activeScene = brief.scenes[Math.min(sceneIndex, brief.scenes.length - 1)];
+
   return (
     <>
       <PageHeader
-        eyebrow="CREATIVE ENGINE / HYPERFRAMES"
+        eyebrow="CREATIVE ENGINE V2 / HYPERFRAMES"
         title="Creative Studio"
-        description="Build a branded video draft, review its scenes, and render a new version."
+        description="Plan media-driven scenes, tune motion and sound, then render a reviewable branded ad."
       />
+
       {!campaigns.length ? (
         <Empty title="Create a campaign first">
-          Creative drafts belong to a business and campaign. Add one in
-          Campaigns to begin.
+          Creative drafts belong to a business and campaign. Add one in Campaigns to begin.
         </Empty>
       ) : (
         <div className="engine-grid">
-          <section className="form-section">
-            <h2>Creative brief</h2>
-            <div className="form-grid">
-              <label className="field full">
-                Version title
-                <input
-                  value={title}
-                  maxLength={200}
-                  onChange={(e) => setTitle(e.target.value)}
-                />
-              </label>
-              <label className="field full">
-                Campaign
+          <section>
+            <section className="form-section">
+              <h2>Asset library</h2>
+              <p className="muted">
+                Upload images, MP4/WebM clips, logos, or music. Assets stay private in Supabase Storage.
+              </p>
+              <div className="engine-actions">
                 <select
-                  value={campaignId}
-                  onChange={(e) => setCampaignId(e.target.value)}
-                >
-                  {campaigns.map((c) => (
-                    <option value={c.id} key={c.id}>
-                      {c.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="field">
-                Template
-                <select
-                  value={brief.template}
-                  onChange={(e) =>
-                    setBrief({
-                      ...brief,
-                      template: e.target.value as CreativeBrief["template"],
-                    })
+                  aria-label="Asset kind"
+                  value={assetKind}
+                  onChange={(event) =>
+                    setAssetKind(event.target.value as CreativeAssetRow["kind"])
                   }
                 >
-                  {templates.map((t) => (
-                    <option key={t}>{t}</option>
+                  {(["image", "video", "logo", "audio"] as const).map((kind) => (
+                    <option key={kind}>{kind}</option>
                   ))}
                 </select>
-              </label>
-              <label className="field">
-                Platform
-                <select
-                  value={brief.platform}
-                  onChange={(e) =>
-                    setBrief({
-                      ...brief,
-                      platform: e.target.value as CreativeBrief["platform"],
-                    })
-                  }
-                >
-                  {platforms.map((t) => (
-                    <option key={t}>{t}</option>
-                  ))}
-                </select>
-              </label>
-              <label className="field">
-                Aspect ratio
-                <select
-                  value={brief.aspectRatio}
-                  onChange={(e) =>
-                    setBrief({
-                      ...brief,
-                      aspectRatio: e.target
-                        .value as CreativeBrief["aspectRatio"],
-                    })
-                  }
-                >
-                  {["9:16", "1:1", "16:9"].map((t) => (
-                    <option key={t}>{t}</option>
-                  ))}
-                </select>
-              </label>
-              <label className="field">
-                Duration (3–60 seconds)
-                <input
-                  type="number"
-                  min={3}
-                  max={60}
-                  value={brief.durationSeconds}
-                  onChange={(e) =>
-                    setBrief({
-                      ...brief,
-                      durationSeconds: Number(e.target.value),
-                    })
-                  }
-                />
-              </label>
-              {(["hook", "bodyCopy", "cta"] as const).map((k) => (
-                <label className="field full" key={k}>
-                  {k === "bodyCopy"
-                    ? "Message"
-                    : k === "cta"
-                      ? "Call to action"
-                      : "Hook"}
-                  <textarea
-                    value={brief[k]}
-                    maxLength={600}
-                    onChange={(e) =>
-                      setBrief({ ...brief, [k]: e.target.value })
+                <label className="button">
+                  Upload {assetKind}
+                  <input
+                    hidden
+                    type="file"
+                    accept={
+                      assetKind === "image"
+                        ? "image/png,image/jpeg,image/webp"
+                        : assetKind === "video"
+                          ? "video/mp4,video/webm"
+                          : assetKind === "logo"
+                            ? "image/png,image/jpeg,image/webp"
+                            : "audio/mpeg,audio/wav,audio/mp4,audio/ogg"
+                    }
+                    onChange={(event) => {
+                      const file = event.target.files?.[0];
+                      if (file) void task(() => uploadAsset(file));
+                      event.currentTarget.value = "";
+                    }}
+                  />
+                </label>
+              </div>
+              <div className="engine-list">
+                {assets.map((asset) => (
+                  <div className="engine-version" key={asset.id}>
+                    <strong>{asset.label}</strong>
+                    <span>{asset.kind} · {asset.mime_type}</span>
+                  </div>
+                ))}
+                {!assets.length && <p className="muted">No media assets yet.</p>}
+              </div>
+            </section>
+
+            <section className="form-section">
+              <h2>Creative brief</h2>
+              <div className="form-grid">
+                <label className="field full">
+                  Version title
+                  <input
+                    value={title}
+                    maxLength={200}
+                    onChange={(event) => setTitle(event.target.value)}
+                  />
+                </label>
+                <label className="field full">
+                  Campaign
+                  <select
+                    value={campaignId}
+                    onChange={(event) => setCampaignId(event.target.value)}
+                  >
+                    {campaigns.map((item) => (
+                      <option value={item.id} key={item.id}>
+                        {item.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="field">
+                  Template
+                  <select
+                    value={brief.template}
+                    onChange={(event) =>
+                      setBrief({
+                        ...brief,
+                        template: event.target.value as CreativeBrief["template"],
+                      })
+                    }
+                  >
+                    {templates.map((template) => (
+                      <option key={template}>{template}</option>
+                    ))}
+                  </select>
+                </label>
+                <label className="field">
+                  Platform
+                  <select
+                    value={brief.platform}
+                    onChange={(event) =>
+                      setBrief({
+                        ...brief,
+                        platform: event.target.value as CreativeBrief["platform"],
+                      })
+                    }
+                  >
+                    {platforms.map((platform) => (
+                      <option key={platform}>{platform}</option>
+                    ))}
+                  </select>
+                </label>
+                <label className="field">
+                  Aspect ratio
+                  <select
+                    value={brief.aspectRatio}
+                    onChange={(event) =>
+                      setBrief({
+                        ...brief,
+                        aspectRatio: event.target.value as CreativeBrief["aspectRatio"],
+                      })
+                    }
+                  >
+                    {["9:16", "1:1", "16:9"].map((ratio) => (
+                      <option key={ratio}>{ratio}</option>
+                    ))}
+                  </select>
+                </label>
+                <label className="field">
+                  Duration
+                  <input
+                    type="number"
+                    min={3}
+                    max={60}
+                    value={brief.durationSeconds}
+                    onChange={(event) =>
+                      setBrief({ ...brief, durationSeconds: Number(event.target.value) })
                     }
                   />
                 </label>
+                {(["hook", "bodyCopy", "cta"] as const).map((key) => (
+                  <label className="field full" key={key}>
+                    {key === "bodyCopy"
+                      ? "Core message"
+                      : key === "cta"
+                        ? "Global call to action"
+                        : "Hook"}
+                    <textarea
+                      value={brief[key]}
+                      maxLength={600}
+                      onChange={(event) =>
+                        setBrief({ ...brief, [key]: event.target.value })
+                      }
+                    />
+                  </label>
+                ))}
+              </div>
+              <div className="engine-actions">
+                <button className="button" disabled={!campaign || busy} onClick={generatePlan}>
+                  Generate scene plan
+                </button>
+                <button
+                  className="button primary"
+                  disabled={busy}
+                  onClick={() => void task(save)}
+                >
+                  Save new version
+                </button>
+                <button
+                  className="button"
+                  disabled={busy || dirty}
+                  onClick={() => void task(queue)}
+                >
+                  Submit render
+                </button>
+              </div>
+            </section>
+
+            <section className="form-section">
+              <h2>Scene timeline</h2>
+              <p className="muted">
+                Each scene controls its own timing, media, motion, transition, text and overlay.
+              </p>
+              {brief.scenes.map((scene, index) => (
+                <div
+                  key={scene.id}
+                  style={{
+                    border: "1px solid var(--line)",
+                    borderRadius: 10,
+                    padding: 16,
+                    marginTop: 14,
+                  }}
+                >
+                  <div className="section-line">
+                    <strong>Scene {index + 1} · {scene.type}</strong>
+                    <div className="engine-actions" style={{ margin: 0 }}>
+                      <button className="button quiet" disabled={index === 0} onClick={() => moveScene(index, -1)}>↑</button>
+                      <button className="button quiet" disabled={index === brief.scenes.length - 1} onClick={() => moveScene(index, 1)}>↓</button>
+                      {brief.scenes.length > 1 && (
+                        <button
+                          className="button quiet"
+                          onClick={() => {
+                            setBrief({
+                              ...brief,
+                              scenes: brief.scenes.filter((_, i) => i !== index),
+                            });
+                            setSceneIndex(0);
+                          }}
+                        >
+                          Remove
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="form-grid">
+                    <label className="field">
+                      Type
+                      <select
+                        value={scene.type}
+                        onChange={(event) =>
+                          updateScene(index, {
+                            type: event.target.value as CreativeScene["type"],
+                          })
+                        }
+                      >
+                        {sceneTypes.map((type) => <option key={type}>{type}</option>)}
+                      </select>
+                    </label>
+                    <label className="field">
+                      Seconds
+                      <input
+                        type="number"
+                        min={0.75}
+                        max={30}
+                        step={0.25}
+                        value={scene.durationSeconds}
+                        onChange={(event) =>
+                          updateScene(index, { durationSeconds: Number(event.target.value) })
+                        }
+                      />
+                    </label>
+                    <label className="field full">
+                      Headline
+                      <textarea
+                        value={scene.text}
+                        onChange={(event) => updateScene(index, { text: event.target.value })}
+                      />
+                    </label>
+                    <label className="field full">
+                      Supporting text
+                      <textarea
+                        value={scene.subtext}
+                        onChange={(event) => updateScene(index, { subtext: event.target.value })}
+                      />
+                    </label>
+                    <label className="field full">
+                      Scene CTA
+                      <input
+                        value={scene.cta}
+                        onChange={(event) => updateScene(index, { cta: event.target.value })}
+                      />
+                    </label>
+                    <label className="field">
+                      Background
+                      <select
+                        value={scene.backgroundAssetId ?? ""}
+                        onChange={(event) =>
+                          updateScene(index, {
+                            backgroundAssetId: event.target.value || undefined,
+                          })
+                        }
+                      >
+                        <option value="">Animated brand background</option>
+                        {visualAssets.map((asset) => (
+                          <option key={asset.id} value={asset.id}>{asset.label}</option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="field">
+                      Animation
+                      <select
+                        value={scene.animationPreset}
+                        onChange={(event) =>
+                          updateScene(index, {
+                            animationPreset: event.target.value as CreativeScene["animationPreset"],
+                          })
+                        }
+                      >
+                        {animationPresets.map((preset) => <option key={preset}>{preset}</option>)}
+                      </select>
+                    </label>
+                    <label className="field">
+                      Transition in
+                      <select
+                        value={scene.transitionIn}
+                        onChange={(event) =>
+                          updateScene(index, {
+                            transitionIn: event.target.value as CreativeScene["transitionIn"],
+                          })
+                        }
+                      >
+                        {transitionPresets.map((preset) => <option key={preset}>{preset}</option>)}
+                      </select>
+                    </label>
+                    <label className="field">
+                      Transition out
+                      <select
+                        value={scene.transitionOut}
+                        onChange={(event) =>
+                          updateScene(index, {
+                            transitionOut: event.target.value as CreativeScene["transitionOut"],
+                          })
+                        }
+                      >
+                        {transitionPresets.map((preset) => <option key={preset}>{preset}</option>)}
+                      </select>
+                    </label>
+                    <label className="field">
+                      Text position
+                      <select
+                        value={scene.textPosition}
+                        onChange={(event) =>
+                          updateScene(index, {
+                            textPosition: event.target.value as CreativeScene["textPosition"],
+                          })
+                        }
+                      >
+                        {["top", "center", "bottom", "left", "right"].map((value) => <option key={value}>{value}</option>)}
+                      </select>
+                    </label>
+                    <label className="field">
+                      Text align
+                      <select
+                        value={scene.textAlign}
+                        onChange={(event) =>
+                          updateScene(index, {
+                            textAlign: event.target.value as CreativeScene["textAlign"],
+                          })
+                        }
+                      >
+                        {["left", "center", "right"].map((value) => <option key={value}>{value}</option>)}
+                      </select>
+                    </label>
+                    <label className="field">
+                      Overlay
+                      <input
+                        type="range"
+                        min={0}
+                        max={0.85}
+                        step={0.05}
+                        value={scene.overlayOpacity}
+                        onChange={(event) =>
+                          updateScene(index, { overlayOpacity: Number(event.target.value) })
+                        }
+                      />
+                    </label>
+                    <label className="field">
+                      Emphasis
+                      <select
+                        value={scene.emphasis}
+                        onChange={(event) =>
+                          updateScene(index, {
+                            emphasis: event.target.value as CreativeScene["emphasis"],
+                          })
+                        }
+                      >
+                        {["quiet", "standard", "strong"].map((value) => <option key={value}>{value}</option>)}
+                      </select>
+                    </label>
+                  </div>
+
+                  {scene.type === "gallery" && visualAssets.length > 0 && (
+                    <div style={{ marginTop: 14 }}>
+                      <small>Gallery media</small>
+                      <div className="engine-actions">
+                        {visualAssets.map((asset) => (
+                          <label className="button quiet" key={asset.id}>
+                            <input
+                              type="checkbox"
+                              checked={scene.mediaAssetIds.includes(asset.id)}
+                              onChange={(event) => {
+                                const ids = event.target.checked
+                                  ? [...scene.mediaAssetIds, asset.id].slice(0, 6)
+                                  : scene.mediaAssetIds.filter((id) => id !== asset.id);
+                                updateScene(index, { mediaAssetIds: ids });
+                              }}
+                            />
+                            {asset.label}
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="engine-actions">
+                    <label className="button quiet">
+                      <input
+                        type="checkbox"
+                        checked={scene.logoEnabled}
+                        disabled={!logoAssets.length}
+                        onChange={(event) =>
+                          updateScene(index, { logoEnabled: event.target.checked })
+                        }
+                      />
+                      Logo overlay
+                    </label>
+                    <label className="button quiet">
+                      <input
+                        type="checkbox"
+                        checked={scene.captionEnabled}
+                        onChange={(event) =>
+                          updateScene(index, { captionEnabled: event.target.checked })
+                        }
+                      />
+                      Scene label
+                    </label>
+                  </div>
+                </div>
               ))}
-              {brief.scenes.map((s, i) => (
-                <label className="field full" key={i}>
-                  Scene {i + 1}
-                  <textarea
-                    value={s.text}
-                    maxLength={600}
-                    onChange={(e) =>
+              <div className="engine-actions">
+                <button
+                  className="button"
+                  disabled={brief.scenes.length >= 12}
+                  onClick={() =>
+                    setBrief({
+                      ...brief,
+                      scenes: [
+                        ...brief.scenes,
+                        sceneSchema.parse({ text: "New scene", durationSeconds: 3 }),
+                      ],
+                    })
+                  }
+                >
+                  Add scene
+                </button>
+              </div>
+            </section>
+
+            <section className="form-section">
+              <h2>Sound</h2>
+              <div className="form-grid">
+                <label className="field full">
+                  Background music
+                  <select
+                    value={brief.audio.musicAssetId ?? ""}
+                    onChange={(event) =>
                       setBrief({
                         ...brief,
-                        scenes: brief.scenes.map((v, n) =>
-                          n === i ? { text: e.target.value } : v,
-                        ),
+                        audio: {
+                          ...brief.audio,
+                          musicAssetId: event.target.value || undefined,
+                        },
+                      })
+                    }
+                  >
+                    <option value="">No music</option>
+                    {audioAssets.map((asset) => (
+                      <option key={asset.id} value={asset.id}>{asset.label}</option>
+                    ))}
+                  </select>
+                </label>
+                <label className="field">
+                  Music volume
+                  <input
+                    type="range"
+                    min={0}
+                    max={1}
+                    step={0.05}
+                    value={brief.audio.musicVolume}
+                    onChange={(event) =>
+                      setBrief({
+                        ...brief,
+                        audio: {
+                          ...brief.audio,
+                          musicVolume: Number(event.target.value),
+                        },
                       })
                     }
                   />
-                  {brief.scenes.length > 1 && (
-                    <button
-                      className="text-link"
-                      onClick={() => {
-                        setBrief({
-                          ...brief,
-                          scenes: brief.scenes.filter((_, n) => n !== i),
-                        });
-                        setSceneIndex(0);
-                      }}
-                    >
-                      Remove scene
-                    </button>
-                  )}
                 </label>
-              ))}
-            </div>
-            <div className="engine-actions">
-              <button
-                className="button"
-                disabled={!campaign || busy}
-                onClick={() => {
-                  if (campaign) {
-                    setBrief(templateBrief(brief.template, business, campaign));
-                    setSceneIndex(0);
-                  }
-                }}
-              >
-                Fill from campaign & DNA
-              </button>
-              <button
-                className="button"
-                disabled={brief.scenes.length >= 8}
-                onClick={() =>
-                  setBrief({
-                    ...brief,
-                    scenes: [...brief.scenes, { text: "" }],
-                  })
-                }
-              >
-                Add scene
-              </button>
-              <button
-                className="button primary"
-                disabled={busy}
-                onClick={() => void task(save)}
-              >
-                Save new version
-              </button>
-              <button
-                className="button"
-                disabled={busy || dirty}
-                onClick={() => void task(queue)}
-              >
-                Submit render
-              </button>
-            </div>
-            <p className="muted">
-              This first renderer creates text-led videos. Uploaded images,
-              music, and logo compositing are not enabled.
-            </p>
+                <label className="field">
+                  Fade out (seconds)
+                  <input
+                    type="number"
+                    min={0}
+                    max={3}
+                    step={0.1}
+                    value={brief.audio.fadeOut}
+                    onChange={(event) =>
+                      setBrief({
+                        ...brief,
+                        audio: {
+                          ...brief.audio,
+                          fadeOut: Number(event.target.value),
+                        },
+                      })
+                    }
+                  />
+                </label>
+              </div>
+            </section>
           </section>
+
           <aside>
             <section className="form-section">
-              <h2>Composition preview</h2>
-              <p>
-                Scene structure preview · equal scene timing · {brief.template}
+              <h2>Scene preview</h2>
+              <p className="muted">
+                {activeScene?.durationSeconds ?? 0}s · {activeScene?.animationPreset} · {activeScene?.transitionIn}
               </p>
               <div
                 className="composition-preview"
@@ -350,14 +824,17 @@ export default function CreativeStudio() {
                   background: dna?.primaryColor || "#181426",
                   color: dna?.secondaryColor || "#ffffff",
                   fontFamily: dna?.headingFont || "Arial",
+                  textAlign: activeScene?.textAlign || "left",
                 }}
               >
                 <small style={{ color: dna?.accentColor || "#a78bfa" }}>
                   {business.profile.businessName}
                 </small>
-                <h2>{preview[sceneIndex] || "Your scene copy"}</h2>
+                <h2>{activeScene?.text || "Your scene headline"}</h2>
+                {activeScene?.subtext && <p>{activeScene.subtext}</p>}
+                {activeScene?.cta && <span className="button primary">{activeScene.cta}</span>}
                 <span>
-                  {sceneIndex + 1} / {preview.length}
+                  {Math.min(sceneIndex + 1, brief.scenes.length)} / {brief.scenes.length}
                 </span>
               </div>
               <label className="field">
@@ -366,66 +843,60 @@ export default function CreativeStudio() {
                   aria-label="Preview scene"
                   type="range"
                   min={0}
-                  max={preview.length - 1}
-                  value={sceneIndex}
-                  onChange={(e) => setSceneIndex(Number(e.target.value))}
+                  max={Math.max(0, brief.scenes.length - 1)}
+                  value={Math.min(sceneIndex, Math.max(0, brief.scenes.length - 1))}
+                  onChange={(event) => setSceneIndex(Number(event.target.value))}
                 />
               </label>
             </section>
+
             <section className="form-section">
               <h2>Review & render</h2>
               {selected && (
                 <>
                   <Badge>{selected.studio!.approval}</Badge>
                   <div className="engine-actions">
-                    {(["In review", "Approved", "Rejected"] as const).map(
-                      (state) => (
-                        <button
-                          className="button"
-                          disabled={busy || dirty}
-                          key={state}
-                          onClick={() =>
-                            void task(async () => {
-                              const changed = {
-                                ...selected,
-                                studio: {
-                                  ...selected.studio!,
-                                  approval: state,
-                                },
-                              };
-                              await update((w) => ({
-                                ...w,
-                                creatives: w.creatives.map((c) =>
-                                  c.id === changed.id ? changed : c,
-                                ),
-                              }));
-                              setSelected(changed);
-                              setMessage(
-                                "Review recorded. No publishing or ad-account action was performed.",
-                              );
-                            })
-                          }
-                        >
-                          {state}
-                        </button>
-                      ),
-                    )}
+                    {(["In review", "Approved", "Rejected"] as const).map((state) => (
+                      <button
+                        className="button"
+                        disabled={busy || dirty}
+                        key={state}
+                        onClick={() =>
+                          void task(async () => {
+                            const changed = {
+                              ...selected,
+                              studio: { ...selected.studio!, approval: state },
+                            };
+                            await update((workspace) => ({
+                              ...workspace,
+                              creatives: workspace.creatives.map((creative) =>
+                                creative.id === changed.id ? changed : creative,
+                              ),
+                            }));
+                            setSelected(changed);
+                            setMessage("Review recorded. No publishing action was performed.");
+                          })
+                        }
+                      >
+                        {state}
+                      </button>
+                    ))}
                   </div>
                 </>
               )}
               {jobs
-                .filter((j) => j.creative_id === selected?.id)
-                .map((j) => (
-                  <div className="engine-job" key={j.id}>
-                    <Badge>{j.status}</Badge>
-                    <small>{new Date(j.created_at).toLocaleString()}</small>
-                    {j.error && <p role="alert">{j.error}</p>}
-                    {j.output_path && (
+                .filter((job) => job.creative_id === selected?.id)
+                .map((job) => (
+                  <div className="engine-job" key={job.id}>
+                    <Badge>{job.status}</Badge>
+                    <small>{new Date(job.created_at).toLocaleString()}</small>
+                    {job.error && <p role="alert">{job.error}</p>}
+                    {job.output_path && (
                       <button
                         className="text-link"
                         onClick={() =>
                           void task(async () =>
-                            setVideo(await signedRender(j.output_path!)),
+                            setVideo(await signedRender(job.output_path!)),
                           )
                         }
                       >
@@ -436,13 +907,15 @@ export default function CreativeStudio() {
                 ))}
               {video && <video controls src={video} className="render-video" />}
               <p className="muted">
-                Human review is mandatory. No publishing controls are enabled.
+                HyperFrames renders media, motion and transitions; FFmpeg adds selected audio. Human review remains mandatory.
               </p>
             </section>
           </aside>
         </div>
       )}
+
       <Feedback message={message} error={failed} />
+
       <section className="form-section">
         <h2>Saved versions</h2>
         <div className="engine-list">
@@ -450,16 +923,15 @@ export default function CreativeStudio() {
             creatives
               .slice()
               .reverse()
-              .map((c) => (
+              .map((creative) => (
                 <button
                   className="engine-version"
-                  key={c.id}
-                  onClick={() => edit(c)}
+                  key={creative.id}
+                  onClick={() => edit(creative)}
                 >
-                  <strong>{c.title}</strong>
+                  <strong>{creative.title}</strong>
                   <span>
-                    {c.studio!.brief.platform} · {c.studio!.brief.aspectRatio} ·{" "}
-                    {c.studio!.approval}
+                    {creative.studio!.brief.platform} · {creative.studio!.brief.aspectRatio} · {creative.studio!.approval}
                   </span>
                 </button>
               ))
