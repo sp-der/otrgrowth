@@ -52,6 +52,19 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   return (await response.json()) as T;
 }
 
+function normalizeTimestamp(value: string): string {
+  const candidate = value
+    .trim()
+    .replace(/^(\d{4}-\d{2}-\d{2})\s+/, "$1T")
+    .replace(/([+-]\d{2})(\d{2})$/, "$1:$2")
+    .replace(/([+-]\d{2})$/, "$1:00");
+  const timestamp = new Date(candidate);
+  if (Number.isNaN(timestamp.getTime())) {
+    throw new Error("Workspace contains an invalid timestamp.");
+  }
+  return timestamp.toISOString();
+}
+
 function localWorkspace(): Workspace | null {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -105,8 +118,8 @@ export class SupabaseWorkspaceRepository implements WorkspaceRepository {
         id: row.id,
         number: row.number,
         profile: profileByBusiness.get(row.id),
-        createdAt: row.created_at,
-        updatedAt: row.updated_at,
+        createdAt: normalizeTimestamp(row.created_at),
+        updatedAt: normalizeTimestamp(row.updated_at),
       })),
       strategies: strategies.map((row) => row.payload),
       content: content.map((row) => row.payload),
