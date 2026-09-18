@@ -8,6 +8,7 @@ RUN apt-get update \
     fonts-dejavu-core \
     fonts-liberation \
     fonts-noto-color-emoji \
+    unzip \
   && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
@@ -20,6 +21,7 @@ COPY upstream.json ./
 ENV NODE_ENV=production
 ENV PORT=8080
 ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
+ENV HYPERFRAMES_BROWSER_PATH=/usr/bin/chromium
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
 ENV CONTAINER=true
 ENV HYPERFRAMES_PROJECTS_DIR=/data/projects
