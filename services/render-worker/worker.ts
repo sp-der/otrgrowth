@@ -8,7 +8,7 @@ if (!url || !key) {
 }
 
 const headers = {
-  apikey: key,
+  apikey: key!,
   Authorization: "Bearer " + key,
   "Content-Type": "application/json",
 };
@@ -37,7 +37,7 @@ async function loadCreativeAsset(storagePath: string) {
       encodedStoragePath(storagePath),
     {
       headers: {
-        apikey: key,
+        apikey: key!,
         Authorization: "Bearer " + key,
       },
       signal: AbortSignal.timeout(120000),
@@ -83,7 +83,7 @@ while (!stop) {
         {
           method: "POST",
           headers: {
-            apikey: key,
+            apikey: key!,
             Authorization: "Bearer " + key,
             "Content-Type": "video/mp4",
           },
