@@ -2,13 +2,13 @@ import "server-only";
 import { z } from "zod";
 import { AIError, type AIMessage, type AIProvider } from "./types";
 import { readLimited } from "./read-limited";
-import { getVercelRuntimeOidcToken } from "./vercel-oidc";
+import { getVercelGatewayOidcHeaders, getVercelRuntimeOidcToken } from "./vercel-oidc";
 const envelopeSchema = z.object({
   choices: z
     .array(z.object({ message: z.object({ content: z.string().min(1) }) }))
     .min(1),
 });
-export type ProviderConfig = { baseUrl: string; apiKey: string; model: string };
+export type ProviderConfig = { baseUrl: string; apiKey: string; model: string; authMethod?: "api-key" | "oidc" };
 export class OpenAICompatibleProvider implements AIProvider {
   constructor(
     private config: ProviderConfig,
@@ -50,7 +50,9 @@ export class OpenAICompatibleProvider implements AIProvider {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${apiKey}`,
+          ...(this.config.authMethod === "oidc"
+            ? getVercelGatewayOidcHeaders(apiKey)
+            : { Authorization: `Bearer ${apiKey}` }),
         },
         body: JSON.stringify({
           model,
@@ -121,6 +123,7 @@ export function getAIProvider(options: { timeoutMs?: number; maxTokens?: number 
       model:
         process.env.AI_MODEL ||
         (useVercelGateway ? "openai/gpt-5.6-sol" : "auto:smart"),
+      authMethod: useVercelGateway ? "oidc" : "api-key",
     },
     fetch,
     options.timeoutMs ?? 45_000,
