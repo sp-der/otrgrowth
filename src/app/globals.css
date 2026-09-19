@@ -1612,3 +1612,94 @@ tbody tr:last-child td {
 .engine-grid ul{padding-left:20px}
 .engine-grid li{margin:12px 0}
 @media(max-width:900px){.engine-grid{grid-template-columns:1fr}}
+
+
+/* Content Studio ---------------------------------------------------------- */
+.studio-status-bar {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  flex-wrap: wrap;
+  margin: -8px 0 16px;
+  padding: 11px 14px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.025);
+  font-size: 12px;
+}
+.studio-status-bar span {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+.studio-frame-shell {
+  position: relative;
+  min-height: 720px;
+  height: calc(100vh - 230px);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  overflow: hidden;
+  background: #0a0a0a;
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.28);
+}
+.studio-frame {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: #0a0a0a;
+}
+.studio-frame-state {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 14px;
+  padding: 32px;
+  text-align: center;
+  background: #0a0a0a;
+  color: #e9e9e9;
+  z-index: 2;
+}
+.studio-frame-state.error {
+  color: #fff;
+}
+.studio-footnote {
+  margin: 12px 2px 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+@media (max-width: 900px) {
+  .studio-frame-shell {
+    height: calc(100vh - 190px);
+    min-height: 640px;
+    border-radius: 8px;
+  }
+}
+
+
+/* AI Video Generator ----------------------------------------------------- */
+.studio-head-actions{display:flex;gap:10px;flex-wrap:wrap;justify-content:flex-end}
+.generator-backdrop{position:fixed;inset:0;z-index:120;display:grid;place-items:center;padding:24px;background:rgba(0,0,0,.72);backdrop-filter:blur(10px)}
+.generator-panel{width:min(880px,96vw);max-height:92vh;overflow:auto;border:1px solid var(--line);border-radius:18px;background:#0d0f0d;box-shadow:0 30px 100px rgba(0,0,0,.55)}
+.generator-head{display:flex;justify-content:space-between;gap:24px;padding:24px 26px;border-bottom:1px solid var(--line)}
+.generator-head h2{margin:4px 0 6px;font-size:28px}
+.generator-head p{margin:0;color:var(--muted)}
+.generator-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;padding:24px 26px}
+.generator-grid label{display:flex;flex-direction:column;gap:8px;font-size:12px;font-weight:700}
+.generator-grid label>span{letter-spacing:.05em;text-transform:uppercase;color:#d9ddd9}
+.generator-grid input,.generator-grid textarea,.generator-grid select{width:100%;box-sizing:border-box;border:1px solid var(--line);border-radius:10px;background:#090b09;color:#f4f4f4;padding:12px 13px;font:inherit;font-weight:500;line-height:1.45}
+.generator-grid textarea{resize:vertical}
+.generator-grid small{color:var(--muted);font-weight:400;line-height:1.45}
+.generator-wide{grid-column:1/-1}
+.generator-upload>div{display:flex;align-items:center;gap:10px;border:1px dashed #3d443d;border-radius:10px;padding:13px;background:#090b09;color:var(--muted)}
+.generator-upload input{display:none}
+.generator-upload strong{font-size:12px;color:#e8ebe8;cursor:pointer}
+.generator-status{margin:0 26px 14px;padding:12px 14px;border:1px solid rgba(190,255,96,.25);border-radius:10px;background:rgba(190,255,96,.06);color:#dfffab;font-size:12px}
+.generator-error{margin:0 26px 14px;padding:14px;max-height:190px;overflow:auto;white-space:pre-wrap;border:1px solid rgba(255,90,90,.32);border-radius:10px;background:rgba(255,70,70,.06);color:#ffb2b2;font:12px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace}
+.generator-actions{display:flex;justify-content:flex-end;gap:10px;padding:18px 26px 24px;border-top:1px solid var(--line)}
+@media(max-width:700px){.generator-grid{grid-template-columns:1fr}.generator-wide{grid-column:auto}.generator-backdrop{padding:10px}.generator-panel{max-height:96vh}.generator-head,.generator-grid,.generator-actions{padding-left:16px;padding-right:16px}.studio-head-actions{width:100%}}
+
+.studio-ai-state{display:inline-flex;align-items:center;gap:6px;color:#cfff82}
+.studio-ai-state.is-off{color:#ff9c9c}

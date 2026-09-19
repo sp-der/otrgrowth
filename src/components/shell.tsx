@@ -15,6 +15,7 @@ import {
   LogOut,
   Menu,
   X,
+  Clapperboard,
 } from "lucide-react";
 import { signOut } from "@/lib/supabase/auth";
 import { useWorkspace } from "./workspace-provider";
@@ -24,6 +25,7 @@ const navigation = [
   ["/business-dna", "Business DNA", Fingerprint],
   ["/strategist", "Strategist", Sparkles],
   ["/content", "Content", Layers3],
+  ["/content-studio", "Content Studio", Clapperboard],
   ["/campaigns", "Campaigns", Megaphone],
   ["/ads-intelligence", "Ads Intelligence", Sparkles],
   ["/analytics", "Analytics", ChartNoAxesCombined],

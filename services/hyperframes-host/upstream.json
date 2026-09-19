@@ -1,0 +1,7 @@
+{
+  "repository": "https://github.com/heygen-com/hyperframes",
+  "package": "hyperframes",
+  "version": "0.8.48",
+  "integrationSurface": "official CLI preview + Studio server + renderer",
+  "license": "Apache-2.0"
+}
