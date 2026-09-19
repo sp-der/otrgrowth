@@ -1,8 +1,10 @@
+import { getVercelRuntimeOidcToken } from "@/lib/ai/vercel-oidc";
+
 export const runtime = "nodejs";
 
 export async function GET() {
   const explicitKey = process.env.AI_API_KEY?.trim() || "";
-  const vercelOidc = process.env.VERCEL_OIDC_TOKEN?.trim() || "";
+  const vercelOidc = getVercelRuntimeOidcToken();
   const usingVercelGateway = !explicitKey && Boolean(vercelOidc);
   const aiConfigured = Boolean(explicitKey || vercelOidc);
   const studioHost = Boolean(
