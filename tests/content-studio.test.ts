@@ -98,18 +98,26 @@ test("HyperFrames host generation uses official check and system Chromium, not a
 });
 
 
-test("Content Studio uses Vercel AI Gateway OIDC without a manually configured AI key", async (t) => {
+test("Content Studio uses request-scoped Vercel OIDC without a manually configured AI key", async (t) => {
   const previous = {
     apiKey: process.env.AI_API_KEY,
     baseUrl: process.env.AI_BASE_URL,
     model: process.env.AI_MODEL,
     oidc: process.env.VERCEL_OIDC_TOKEN,
   };
+  const contextSymbol = Symbol.for("@vercel/request-context");
+  const runtime = globalThis as typeof globalThis & { [key: symbol]: unknown };
+  const previousContext = runtime[contextSymbol];
 
   delete process.env.AI_API_KEY;
   delete process.env.AI_BASE_URL;
   delete process.env.AI_MODEL;
-  process.env.VERCEL_OIDC_TOKEN = "test-vercel-oidc-token";
+  delete process.env.VERCEL_OIDC_TOKEN;
+  runtime[contextSymbol] = {
+    get: () => ({
+      headers: { "x-vercel-oidc-token": "test-vercel-request-oidc-token" },
+    }),
+  };
 
   try {
     const capabilities = await CAPABILITIES();
@@ -132,7 +140,7 @@ test("Content Studio uses Vercel AI Gateway OIDC without a manually configured A
         );
         assert.equal(
           new Headers(init?.headers).get("authorization"),
-          "Bearer test-vercel-oidc-token",
+          "Bearer test-vercel-request-oidc-token",
         );
         const body = JSON.parse(String(init?.body)) as { model?: string };
         assert.equal(body.model, "openai/gpt-5.6-sol");
@@ -155,5 +163,7 @@ test("Content Studio uses Vercel AI Gateway OIDC without a manually configured A
     else process.env.AI_MODEL = previous.model;
     if (previous.oidc === undefined) delete process.env.VERCEL_OIDC_TOKEN;
     else process.env.VERCEL_OIDC_TOKEN = previous.oidc;
+    if (previousContext === undefined) delete runtime[contextSymbol];
+    else runtime[contextSymbol] = previousContext;
   }
 });
