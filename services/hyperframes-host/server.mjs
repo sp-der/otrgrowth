@@ -5,7 +5,6 @@ import {
   mkdirSync,
   existsSync,
   writeFileSync,
-  readFileSync,
   rmSync,
   statSync,
 } from "node:fs";
@@ -457,7 +456,36 @@ async function verifyOfficialStudio() {
         prompt: "Runtime smoke only",
         durationSeconds: 6,
         aspectRatio: "9:16",
-        html: readFileSync(join(SMOKE_DIR, "index.html"), "utf8"),
+        html: `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=1080, height=1920" />
+<title>OTR Generator Smoke</title>
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+<style>
+html,body{margin:0;background:#050505;color:#fff;font-family:Inter,system-ui,sans-serif}
+#main{position:relative;width:100%;height:100%;overflow:hidden}
+.clip{position:absolute;inset:0;display:grid;place-items:center}
+h1{margin:0;font-size:110px}
+</style>
+</head>
+<body>
+<div id="main" data-composition-id="main" data-start="0" data-width="1080" data-height="1920" data-duration="6">
+  <section class="clip" data-start="0" data-duration="6" data-track-index="1">
+    <h1 id="smoke-title">OTR Generator</h1>
+  </section>
+</div>
+<script>
+window.__timelines = window.__timelines || {};
+const tl = gsap.timeline({ paused: true });
+tl.fromTo("#smoke-title",{opacity:0,y:120,scale:.9},{opacity:1,y:0,scale:1,duration:1,ease:"power3.out"},0.2);
+tl.to("#smoke-title",{y:-40,scale:1.06,duration:1,ease:"power1.inOut"},4.2);
+window.__timelines["main"] = tl;
+tl.seek(0);
+</script>
+</body>
+</html>`,
       },
     });
     if (!generatorBridge.ok) {
