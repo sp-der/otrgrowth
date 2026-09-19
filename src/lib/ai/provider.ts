@@ -13,6 +13,7 @@ export class OpenAICompatibleProvider implements AIProvider {
     private config: ProviderConfig,
     private fetcher: typeof fetch = fetch,
     private timeoutMs = 45_000,
+    private maxTokens = 6_000,
   ) {}
   async complete(messages: AIMessage[]): Promise<string> {
     const { baseUrl, apiKey, model } = this.config;
@@ -55,7 +56,7 @@ export class OpenAICompatibleProvider implements AIProvider {
           messages,
           stream: false,
           response_format: { type: "json_object" },
-          max_tokens: 6000,
+          max_tokens: this.maxTokens,
         }),
         signal: AbortSignal.timeout(this.timeoutMs),
         cache: "no-store",
@@ -103,10 +104,15 @@ export class OpenAICompatibleProvider implements AIProvider {
     }
   }
 }
-export function getAIProvider(): AIProvider {
-  return new OpenAICompatibleProvider({
-    baseUrl: process.env.AI_BASE_URL || "http://127.0.0.1:3001/v1",
-    apiKey: process.env.AI_API_KEY || "",
-    model: process.env.AI_MODEL || "auto:smart",
-  });
+export function getAIProvider(options: { timeoutMs?: number; maxTokens?: number } = {}): AIProvider {
+  return new OpenAICompatibleProvider(
+    {
+      baseUrl: process.env.AI_BASE_URL || "http://127.0.0.1:3001/v1",
+      apiKey: process.env.AI_API_KEY || "",
+      model: process.env.AI_MODEL || "auto:smart",
+    },
+    fetch,
+    options.timeoutMs ?? 45_000,
+    options.maxTokens ?? 6_000,
+  );
 }
