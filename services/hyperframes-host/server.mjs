@@ -441,6 +441,30 @@ async function verifyOfficialStudio() {
       throw new Error("Official HyperFrames Studio project API smoke failed.");
     }
 
+    const generatorBridge = await installGeneratedProject({
+      CLI,
+      projectDir: SMOKE_DIR,
+      context: {
+        businessId: "00000000-0000-4000-8000-000000000001",
+        businessName: "OTR Generator Smoke",
+      },
+      payload: {
+        businessId: "00000000-0000-4000-8000-000000000001",
+        websites: [],
+        title: "Generator bridge smoke",
+        summary: "Validates the real Content Studio generation install/check path.",
+        prompt: "Runtime smoke only",
+        durationSeconds: 6,
+        aspectRatio: "9:16",
+        html: readFileSync(join(SMOKE_DIR, "index.html"), "utf8"),
+      },
+    });
+    if (!generatorBridge.ok) {
+      throw new Error(
+        `Content Studio generator bridge smoke failed: ${generatorBridge.findings || generatorBridge.error}`,
+      );
+    }
+
     const renderOutput = "/tmp/otr-hyperframes-official-smoke.mp4";
     rmSync(renderOutput, { force: true });
     const render = spawnSync(
@@ -489,6 +513,7 @@ async function verifyOfficialStudio() {
       hyperframes: "0.8.48",
       studioBundle: true,
       projectApi: true,
+      generatorBridge: true,
       renderPipeline: true,
       renderSmokeBytes: renderBytes,
     };
