@@ -65,14 +65,38 @@ export class OpenAICompatibleProvider implements AIProvider {
       });
       if (!response.ok) {
         await response.body?.cancel();
-        if ([401, 403].includes(response.status))
+
+        if (response.status === 401) {
           throw new AIError(
             "GATEWAY_NOT_CONFIGURED",
-            "The AI Gateway rejected its credentials. Verify the configured provider or Vercel OIDC access.",
+            "The AI Gateway rejected authentication. If using Vercel OIDC, enable Secure Backend Access with OIDC Federation for the otrgrowth project. Otherwise configure AI_GATEWAY_API_KEY.",
           );
+        }
+
+        if (response.status === 402) {
+          throw new AIError(
+            "PROVIDER_UNAVAILABLE",
+            "The AI Gateway has no usable billing path. Add AI Gateway credits or a payment method in Vercel, then retry.",
+          );
+        }
+
+        if (response.status === 403) {
+          throw new AIError(
+            "PROVIDER_UNAVAILABLE",
+            "The AI Gateway denied access. Check Vercel AI Gateway credits or payment, project and team budgets, provider or model allowlists, and OIDC access for the otrgrowth project.",
+          );
+        }
+
+        if (response.status === 429) {
+          throw new AIError(
+            "PROVIDER_UNAVAILABLE",
+            "The AI Gateway is rate-limited. Wait briefly and retry.",
+          );
+        }
+
         throw new AIError(
           "PROVIDER_UNAVAILABLE",
-          "The AI Gateway is unavailable or rate-limited. Confirm it is running and has a working upstream provider, then retry.",
+          "The AI Gateway is unavailable. Check the Vercel AI Gateway dashboard and retry.",
         );
       }
       let envelope;
@@ -106,9 +130,11 @@ export class OpenAICompatibleProvider implements AIProvider {
   }
 }
 export function getAIProvider(options: { timeoutMs?: number; maxTokens?: number } = {}): AIProvider {
-  const explicitKey = process.env.AI_API_KEY?.trim() || "";
+  const customKey = process.env.AI_API_KEY?.trim() || "";
+  const gatewayKey = process.env.AI_GATEWAY_API_KEY?.trim() || "";
   const vercelOidc = getVercelRuntimeOidcToken();
-  const useVercelGateway = !explicitKey && Boolean(vercelOidc);
+  const useVercelGateway = Boolean(gatewayKey || (!customKey && vercelOidc));
+  const apiKey = customKey || gatewayKey || vercelOidc;
 
   return new OpenAICompatibleProvider(
     {
@@ -117,7 +143,7 @@ export function getAIProvider(options: { timeoutMs?: number; maxTokens?: number 
         (useVercelGateway
           ? "https://ai-gateway.vercel.sh/v1"
           : "http://127.0.0.1:3001/v1"),
-      apiKey: explicitKey || vercelOidc,
+      apiKey,
       model:
         process.env.AI_MODEL ||
         (useVercelGateway ? "openai/gpt-5.6-sol" : "auto:smart"),
