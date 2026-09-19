@@ -127,7 +127,7 @@ test("Content Studio uses request-scoped Vercel OIDC without a manually configur
       model?: string | null;
     };
     assert.equal(payload.aiConfigured, true);
-    assert.equal(payload.provider, "vercel-ai-gateway");
+    assert.equal(payload.provider, "vercel-ai-gateway-oidc");
     assert.equal(payload.model, "openai/gpt-5.6-sol");
 
     t.mock.method(
@@ -165,5 +165,52 @@ test("Content Studio uses request-scoped Vercel OIDC without a manually configur
     else process.env.VERCEL_OIDC_TOKEN = previous.oidc;
     if (previousContext === undefined) delete runtime[contextSymbol];
     else runtime[contextSymbol] = previousContext;
+  }
+});
+
+
+test("Content Studio prefers a configured AI Gateway API key over OIDC", async (t) => {
+  const beforeGateway = process.env.AI_GATEWAY_API_KEY;
+  const beforeCustom = process.env.AI_API_KEY;
+  const beforeModel = process.env.AI_MODEL;
+  process.env.AI_GATEWAY_API_KEY = "test-gateway-key";
+  delete process.env.AI_API_KEY;
+  delete process.env.AI_MODEL;
+
+  try {
+    const response = await CAPABILITIES();
+    const payload = (await response.json()) as {
+      provider?: string | null;
+      model?: string | null;
+    };
+    assert.equal(payload.provider, "vercel-ai-gateway-key");
+    assert.equal(payload.model, "openai/gpt-5.6-sol");
+
+    t.mock.method(
+      globalThis,
+      "fetch",
+      async (input: string | URL | Request, init?: RequestInit) => {
+        assert.equal(String(input), "https://ai-gateway.vercel.sh/v1/chat/completions");
+        assert.equal(
+          new Headers(init?.headers).get("authorization"),
+          "Bearer test-gateway-key",
+        );
+        return Response.json({
+          choices: [{ message: { content: '{"ok":true}' } }],
+        });
+      },
+    );
+
+    assert.equal(
+      await getAIProvider().complete([{ role: "user", content: "Return JSON." }]),
+      '{"ok":true}',
+    );
+  } finally {
+    if (beforeGateway === undefined) delete process.env.AI_GATEWAY_API_KEY;
+    else process.env.AI_GATEWAY_API_KEY = beforeGateway;
+    if (beforeCustom === undefined) delete process.env.AI_API_KEY;
+    else process.env.AI_API_KEY = beforeCustom;
+    if (beforeModel === undefined) delete process.env.AI_MODEL;
+    else process.env.AI_MODEL = beforeModel;
   }
 });
