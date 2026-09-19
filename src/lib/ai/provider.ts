@@ -74,6 +74,16 @@ export class VercelGatewayProvider implements AIProvider {
           await response.body?.cancel();
         }
 
+        if (
+          response.status === 403 &&
+          detail.includes("customer_verification_required")
+        ) {
+          throw new AIError(
+            "GATEWAY_NOT_CONFIGURED",
+            "Vercel AI Gateway is connected, but the Vercel team needs a valid credit card on file before model requests are enabled. Add a card in Vercel AI Gateway, then retry.",
+          );
+        }
+
         if ([401, 403].includes(response.status)) {
           throw new AIError(
             "GATEWAY_NOT_CONFIGURED",
