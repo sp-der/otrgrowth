@@ -2,6 +2,7 @@ import "server-only";
 import { z } from "zod";
 import { AIError, type AIMessage, type AIProvider } from "./types";
 import { readLimited } from "./read-limited";
+import { getVercelRuntimeOidcToken } from "./vercel-oidc";
 const envelopeSchema = z.object({
   choices: z
     .array(z.object({ message: z.object({ content: z.string().min(1) }) }))
@@ -106,7 +107,7 @@ export class OpenAICompatibleProvider implements AIProvider {
 }
 export function getAIProvider(options: { timeoutMs?: number; maxTokens?: number } = {}): AIProvider {
   const explicitKey = process.env.AI_API_KEY?.trim() || "";
-  const vercelOidc = process.env.VERCEL_OIDC_TOKEN?.trim() || "";
+  const vercelOidc = getVercelRuntimeOidcToken();
   const useVercelGateway = !explicitKey && Boolean(vercelOidc);
 
   return new OpenAICompatibleProvider(
