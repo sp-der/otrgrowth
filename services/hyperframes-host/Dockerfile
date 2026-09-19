@@ -16,6 +16,7 @@ COPY package.json ./
 RUN npm install --omit=dev --no-audit --no-fund
 
 COPY server.mjs ./
+COPY generator.mjs ./
 COPY upstream.json ./
 
 ENV NODE_ENV=production
