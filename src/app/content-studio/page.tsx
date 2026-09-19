@@ -339,6 +339,22 @@ export default function ContentStudioPage() {
   const { business } = useWorkspace();
   const [revision, setRevision] = useState(0);
   const [generatorOpen, setGeneratorOpen] = useState(false);
+  const [aiReady, setAiReady] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    fetch("/api/content-studio/capabilities", { cache: "no-store" })
+      .then((response) => response.json())
+      .then((payload: { aiConfigured?: boolean }) => {
+        if (active) setAiReady(Boolean(payload.aiConfigured));
+      })
+      .catch(() => {
+        if (active) setAiReady(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   return (
     <>
@@ -348,7 +364,13 @@ export default function ContentStudioPage() {
         description={`The full HyperFrames Studio workspace for ${business.profile.businessName}, embedded inside OTR Growth.`}
         action={
           <div className="studio-head-actions">
-            <button className="button primary" type="button" onClick={() => setGeneratorOpen(true)}>
+            <button
+              className="button primary"
+              type="button"
+              onClick={() => setGeneratorOpen(true)}
+              disabled={aiReady === false}
+              title={aiReady === false ? "Configure AI_API_KEY on the OTR Growth deployment first." : undefined}
+            >
               <Sparkles size={16} /> Generate Video
             </button>
             <button className="button" type="button" onClick={() => setRevision((value) => value + 1)}>
@@ -370,6 +392,10 @@ export default function ContentStudioPage() {
         <span className="muted">
           Project: {business.profile.businessName} · #
           {String(business.number).padStart(3, "0")}
+        </span>
+        <span className={aiReady === false ? "studio-ai-state is-off" : "studio-ai-state"}>
+          <Sparkles size={14} />
+          {aiReady === null ? "Checking AI…" : aiReady ? "AI director ready" : "AI gateway not configured"}
         </span>
       </div>
 
