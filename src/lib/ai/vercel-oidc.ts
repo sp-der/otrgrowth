@@ -19,3 +19,28 @@ export function getVercelRuntimeOidcToken() {
     ""
   );
 }
+
+export function getVercelGatewayOidcHeaders(token: string) {
+  return {
+    Authorization: `Bearer ${token}`,
+    "ai-gateway-auth-method": "oidc",
+    "ai-gateway-protocol-version": "0.0.1",
+  };
+}
+
+export async function probeVercelGatewayOidc(token: string) {
+  if (!token) return false;
+  try {
+    const response = await fetch("https://ai-gateway.vercel.sh/v1/credits", {
+      method: "GET",
+      headers: getVercelGatewayOidcHeaders(token),
+      cache: "no-store",
+      redirect: "error",
+      signal: AbortSignal.timeout(5_000),
+    });
+    await response.body?.cancel();
+    return response.ok;
+  } catch {
+    return false;
+  }
+}
