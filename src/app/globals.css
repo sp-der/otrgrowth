@@ -1601,3 +1601,14 @@ tbody tr:last-child td {
     scroll-behavior: auto !important;
   }
 }
+
+.engine-grid{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);gap:24px;align-items:start}
+.engine-actions{display:flex;gap:10px;flex-wrap:wrap;margin:20px 0}
+.engine-grid .form-section{margin-bottom:24px}
+.engine-job,.engine-recommendation{padding:20px 0;border-bottom:1px solid var(--border,#ddd)}
+.engine-job{display:flex;gap:12px;flex-wrap:wrap}
+.engine-score{font-size:64px;font-weight:700}
+.table-scroll{overflow:auto}
+.engine-grid ul{padding-left:20px}
+.engine-grid li{margin:12px 0}
+@media(max-width:900px){.engine-grid{grid-template-columns:1fr}}

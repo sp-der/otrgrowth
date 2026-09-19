@@ -205,3 +205,9 @@ Gateway responses are capped at 256 KB. Failed generations do not overwrite the 
 5. Team access, stronger account recovery/MFA and operational audit tooling as needed.
 
 This repository is independent of `sp-der/otrai` and the FreeLLMAPI upstream repository.
+
+## Ads Intelligence
+
+This branch adds a separate evidence-backed Ads Intelligence service with owner-scoped audits, findings, recommendations, and human approval tracking. See [Ads Engine setup, evidence semantics, and Meta roadmap](docs/ads-engine.md).
+
+The previous in-repo creative renderer has been retired. OTR Growth will treat creative production as a separate content workflow rather than maintaining its own rendering engine. No external ad account changes, publishing, or spend actions are enabled.
