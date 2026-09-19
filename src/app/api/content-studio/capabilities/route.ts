@@ -1,4 +1,7 @@
-import { getVercelRuntimeOidcToken } from "@/lib/ai/vercel-oidc";
+import {
+  getVercelRuntimeOidcToken,
+  probeVercelGatewayOidc,
+} from "@/lib/ai/vercel-oidc";
 
 export const runtime = "nodejs";
 
@@ -6,7 +9,10 @@ export async function GET() {
   const explicitKey = process.env.AI_API_KEY?.trim() || "";
   const vercelOidc = getVercelRuntimeOidcToken();
   const usingVercelGateway = !explicitKey && Boolean(vercelOidc);
-  const aiConfigured = Boolean(explicitKey || vercelOidc);
+  const oidcReady = usingVercelGateway
+    ? await probeVercelGatewayOidc(vercelOidc)
+    : false;
+  const aiConfigured = Boolean(explicitKey || oidcReady);
   const studioHost = Boolean(
     (process.env.HYPERFRAMES_STUDIO_URL ||
       "https://hyperframes-host-production.up.railway.app").trim(),
