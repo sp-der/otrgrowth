@@ -146,6 +146,7 @@ test("unreachable, timed-out, unauthorized and rate-limited gateways return safe
     [new Error("sensitive network details"), "PROVIDER_UNAVAILABLE"],
     [new DOMException("timeout", "TimeoutError"), "PROVIDER_UNAVAILABLE"],
     [new Response("secret details", { status: 401 }), "GATEWAY_NOT_CONFIGURED"],
+    [new Response("secret details", { status: 403 }), "PROVIDER_UNAVAILABLE"],
     [new Response("secret details", { status: 429 }), "PROVIDER_UNAVAILABLE"],
   ] as const) {
     await assert.rejects(
