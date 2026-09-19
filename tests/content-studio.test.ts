@@ -120,6 +120,35 @@ test("Content Studio uses request-scoped Vercel OIDC without a manually configur
   };
 
   try {
+    t.mock.method(
+      globalThis,
+      "fetch",
+      async (input: string | URL | Request, init?: RequestInit) => {
+        const url = String(input);
+        const headers = new Headers(init?.headers);
+        assert.equal(
+          headers.get("authorization"),
+          "Bearer test-vercel-request-oidc-token",
+        );
+        assert.equal(headers.get("ai-gateway-auth-method"), "oidc");
+        assert.equal(headers.get("ai-gateway-protocol-version"), "0.0.1");
+
+        if (url === "https://ai-gateway.vercel.sh/v1/credits") {
+          return Response.json({ balance: "10.00", total_used: "0.00" });
+        }
+
+        assert.equal(
+          url,
+          "https://ai-gateway.vercel.sh/v1/chat/completions",
+        );
+        const body = JSON.parse(String(init?.body)) as { model?: string };
+        assert.equal(body.model, "openai/gpt-5.6-sol");
+        return Response.json({
+          choices: [{ message: { content: '{"ok":true}' } }],
+        });
+      },
+    );
+
     const capabilities = await CAPABILITIES();
     const payload = (await capabilities.json()) as {
       aiConfigured?: boolean;
@@ -129,26 +158,6 @@ test("Content Studio uses request-scoped Vercel OIDC without a manually configur
     assert.equal(payload.aiConfigured, true);
     assert.equal(payload.provider, "vercel-ai-gateway");
     assert.equal(payload.model, "openai/gpt-5.6-sol");
-
-    t.mock.method(
-      globalThis,
-      "fetch",
-      async (input: string | URL | Request, init?: RequestInit) => {
-        assert.equal(
-          String(input),
-          "https://ai-gateway.vercel.sh/v1/chat/completions",
-        );
-        assert.equal(
-          new Headers(init?.headers).get("authorization"),
-          "Bearer test-vercel-request-oidc-token",
-        );
-        const body = JSON.parse(String(init?.body)) as { model?: string };
-        assert.equal(body.model, "openai/gpt-5.6-sol");
-        return Response.json({
-          choices: [{ message: { content: '{"ok":true}' } }],
-        });
-      },
-    );
 
     const result = await getAIProvider().complete([
       { role: "user", content: "Return JSON." },
