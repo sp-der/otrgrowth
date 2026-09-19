@@ -9,6 +9,7 @@ RUN apt-get update \
     fonts-liberation \
     fonts-noto-color-emoji \
     unzip \
+    gosu \
   && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
@@ -18,6 +19,7 @@ RUN npm install --omit=dev --no-audit --no-fund
 COPY server.mjs ./
 COPY generator.mjs ./
 COPY upstream.json ./
+COPY entrypoint.sh /usr/local/bin/otr-hyperframes-entrypoint
 
 ENV NODE_ENV=production
 ENV PORT=8080
@@ -28,8 +30,9 @@ ENV CONTAINER=true
 ENV HYPERFRAMES_PROJECTS_DIR=/data/projects
 ENV HYPERFRAMES_NO_UPDATE_CHECK=1
 
-RUN mkdir -p /data/projects && chown -R node:node /app /data
-USER node
+RUN chmod +x /usr/local/bin/otr-hyperframes-entrypoint \
+  && mkdir -p /data/projects \
+  && chown -R node:node /app /data
 
 EXPOSE 8080
-CMD ["node", "server.mjs"]
+ENTRYPOINT ["/usr/local/bin/otr-hyperframes-entrypoint"]
