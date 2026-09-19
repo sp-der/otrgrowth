@@ -20,7 +20,7 @@ export class OpenAICompatibleProvider implements AIProvider {
     if (!apiKey.trim())
       throw new AIError(
         "GATEWAY_NOT_CONFIGURED",
-        "The AI Gateway is not configured for this deployment.",
+        "The AI Gateway must be configured for this deployment.",
       );
     let endpoint: URL;
     try {
