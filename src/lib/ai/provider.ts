@@ -20,7 +20,7 @@ export class OpenAICompatibleProvider implements AIProvider {
     if (!apiKey.trim())
       throw new AIError(
         "GATEWAY_NOT_CONFIGURED",
-        "The AI Gateway must be configured. Add AI_API_KEY to the server environment, verify AI_BASE_URL and AI_MODEL, then restart OTR Growth.",
+        "The AI Gateway is not configured for this deployment.",
       );
     let endpoint: URL;
     try {
@@ -67,7 +67,7 @@ export class OpenAICompatibleProvider implements AIProvider {
         if ([401, 403].includes(response.status))
           throw new AIError(
             "GATEWAY_NOT_CONFIGURED",
-            "The AI Gateway rejected its credentials. Update AI_API_KEY on the server and restart OTR Growth.",
+            "The AI Gateway rejected its credentials. Verify the configured provider or Vercel OIDC access.",
           );
         throw new AIError(
           "PROVIDER_UNAVAILABLE",
@@ -105,11 +105,21 @@ export class OpenAICompatibleProvider implements AIProvider {
   }
 }
 export function getAIProvider(options: { timeoutMs?: number; maxTokens?: number } = {}): AIProvider {
+  const explicitKey = process.env.AI_API_KEY?.trim() || "";
+  const vercelOidc = process.env.VERCEL_OIDC_TOKEN?.trim() || "";
+  const useVercelGateway = !explicitKey && Boolean(vercelOidc);
+
   return new OpenAICompatibleProvider(
     {
-      baseUrl: process.env.AI_BASE_URL || "http://127.0.0.1:3001/v1",
-      apiKey: process.env.AI_API_KEY || "",
-      model: process.env.AI_MODEL || "auto:smart",
+      baseUrl:
+        process.env.AI_BASE_URL ||
+        (useVercelGateway
+          ? "https://ai-gateway.vercel.sh/v1"
+          : "http://127.0.0.1:3001/v1"),
+      apiKey: explicitKey || vercelOidc,
+      model:
+        process.env.AI_MODEL ||
+        (useVercelGateway ? "openai/gpt-5.6-sol" : "auto:smart"),
     },
     fetch,
     options.timeoutMs ?? 45_000,
