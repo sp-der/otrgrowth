@@ -28,19 +28,73 @@ export function getVercelGatewayOidcHeaders(token: string) {
   };
 }
 
-export async function probeVercelGatewayOidc(token: string) {
-  if (!token) return false;
-  try {
-    const response = await fetch("https://ai-gateway.vercel.sh/v1/credits", {
-      method: "GET",
-      headers: getVercelGatewayOidcHeaders(token),
-      cache: "no-store",
-      redirect: "error",
-      signal: AbortSignal.timeout(5_000),
-    });
-    await response.body?.cancel();
-    return response.ok;
-  } catch {
-    return false;
+export async function inspectVercelGatewayOidc(token: string, model: string) {
+  if (!token) {
+    return {
+      authenticated: false,
+      modelAvailable: false,
+      creditsStatus: 0,
+      configStatus: 0,
+    };
   }
+
+  try {
+    const headers = getVercelGatewayOidcHeaders(token);
+    const [creditsResponse, configResponse] = await Promise.all([
+      fetch("https://ai-gateway.vercel.sh/v1/credits", {
+        method: "GET",
+        headers,
+        cache: "no-store",
+        redirect: "error",
+        signal: AbortSignal.timeout(5_000),
+      }),
+      fetch("https://ai-gateway.vercel.sh/v4/ai/config", {
+        method: "GET",
+        headers,
+        cache: "no-store",
+        redirect: "error",
+        signal: AbortSignal.timeout(5_000),
+      }),
+    ]);
+
+    let modelAvailable = false;
+    if (configResponse.ok) {
+      try {
+        const payload = (await configResponse.json()) as {
+          models?: Array<{ id?: string }>;
+        };
+        modelAvailable = Boolean(
+          payload.models?.some((entry) => entry.id === model),
+        );
+      } catch {
+        modelAvailable = false;
+      }
+    } else {
+      await configResponse.body?.cancel();
+    }
+
+    await creditsResponse.body?.cancel();
+
+    return {
+      authenticated: creditsResponse.ok && configResponse.ok,
+      modelAvailable,
+      creditsStatus: creditsResponse.status,
+      configStatus: configResponse.status,
+    };
+  } catch {
+    return {
+      authenticated: false,
+      modelAvailable: false,
+      creditsStatus: 0,
+      configStatus: 0,
+    };
+  }
+}
+
+export async function probeVercelGatewayOidc(token: string) {
+  const result = await inspectVercelGatewayOidc(
+    token,
+    "openai/gpt-5.6-sol",
+  );
+  return result.authenticated;
 }
