@@ -98,7 +98,7 @@ test("HyperFrames host generation uses official check and system Chromium, not a
 });
 
 
-test("Content Studio uses request-scoped Vercel OIDC without a manually configured AI key", async (t) => {
+test("Content Studio uses native Vercel Gateway v4 for request-scoped OIDC", async (t) => {
   const previous = {
     apiKey: process.env.AI_API_KEY,
     baseUrl: process.env.AI_BASE_URL,
@@ -120,24 +120,11 @@ test("Content Studio uses request-scoped Vercel OIDC without a manually configur
   };
 
   try {
-    const capabilities = await CAPABILITIES();
-    const payload = (await capabilities.json()) as {
-      aiConfigured?: boolean;
-      provider?: string | null;
-      model?: string | null;
-    };
-    assert.equal(payload.aiConfigured, true);
-    assert.equal(payload.provider, "vercel-ai-gateway");
-    assert.equal(payload.model, "openai/gpt-5.6-sol");
-
     t.mock.method(
       globalThis,
       "fetch",
       async (input: string | URL | Request, init?: RequestInit) => {
-        assert.equal(
-          String(input),
-          "https://ai-gateway.vercel.sh/v1/chat/completions",
-        );
+        const url = String(input);
         const headers = new Headers(init?.headers);
         assert.equal(
           headers.get("authorization"),
@@ -145,17 +132,63 @@ test("Content Studio uses request-scoped Vercel OIDC without a manually configur
         );
         assert.equal(headers.get("ai-gateway-auth-method"), "oidc");
         assert.equal(headers.get("ai-gateway-protocol-version"), "0.0.1");
-        const body = JSON.parse(String(init?.body)) as { model?: string };
-        assert.equal(body.model, "openai/gpt-5.6-sol");
+
+        if (url === "https://ai-gateway.vercel.sh/v1/credits") {
+          return Response.json({ balance: "10.00", total_used: "0.00" });
+        }
+
+        if (url === "https://ai-gateway.vercel.sh/v4/ai/config") {
+          return Response.json({
+            models: [{ id: "openai/gpt-5.6-sol" }],
+          });
+        }
+
+        assert.equal(
+          url,
+          "https://ai-gateway.vercel.sh/v4/ai/language-model",
+        );
+        assert.equal(
+          headers.get("ai-language-model-specification-version"),
+          "4",
+        );
+        assert.equal(
+          headers.get("ai-language-model-id"),
+          "openai/gpt-5.6-sol",
+        );
+        assert.equal(headers.get("ai-language-model-streaming"), "false");
+
+        const body = JSON.parse(String(init?.body)) as {
+          prompt?: Array<unknown>;
+          maxOutputTokens?: number;
+          responseFormat?: { type?: string };
+        };
+        assert.equal(body.maxOutputTokens, 16);
+        assert.equal(body.responseFormat?.type, "json");
+        assert.equal(body.prompt?.length, 1);
+
         return Response.json({
-          choices: [{ message: { content: '{"ok":true}' } }],
+          content: [{ type: "text", text: '{"ok":true}' }],
         });
       },
     );
 
-    const result = await getAIProvider().complete([
-      { role: "user", content: "Return JSON." },
-    ]);
+    const capabilities = await CAPABILITIES();
+    const payload = (await capabilities.json()) as {
+      aiConfigured?: boolean;
+      provider?: string | null;
+      model?: string | null;
+      gatewayAuthenticated?: boolean | null;
+      gatewayModelAvailable?: boolean | null;
+    };
+    assert.equal(payload.aiConfigured, true);
+    assert.equal(payload.provider, "vercel-ai-gateway-native-v4");
+    assert.equal(payload.model, "openai/gpt-5.6-sol");
+    assert.equal(payload.gatewayAuthenticated, true);
+    assert.equal(payload.gatewayModelAvailable, true);
+
+    const result = await getAIProvider({
+      maxTokens: 16,
+    }).complete([{ role: "user", content: "Return JSON." }]);
     assert.equal(result, '{"ok":true}');
   } finally {
     if (previous.apiKey === undefined) delete process.env.AI_API_KEY;
