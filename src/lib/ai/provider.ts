@@ -8,7 +8,7 @@ const envelopeSchema = z.object({
     .array(z.object({ message: z.object({ content: z.string().min(1) }) }))
     .min(1),
 });
-export type ProviderConfig = { baseUrl: string; apiKey: string; model: string };
+export type ProviderConfig = { baseUrl: string; apiKey: string; model: string; authMethod?: "api-key" | "oidc" };
 export class OpenAICompatibleProvider implements AIProvider {
   constructor(
     private config: ProviderConfig,
@@ -17,7 +17,7 @@ export class OpenAICompatibleProvider implements AIProvider {
     private maxTokens = 6_000,
   ) {}
   async complete(messages: AIMessage[]): Promise<string> {
-    const { baseUrl, apiKey, model } = this.config;
+    const { baseUrl, apiKey, model, authMethod } = this.config;
     if (!apiKey.trim())
       throw new AIError(
         "GATEWAY_NOT_CONFIGURED",
@@ -51,6 +51,12 @@ export class OpenAICompatibleProvider implements AIProvider {
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${apiKey}`,
+          ...(authMethod
+            ? {
+                "ai-gateway-auth-method": authMethod,
+                "ai-gateway-protocol-version": "0.0.1",
+              }
+            : {}),
         },
         body: JSON.stringify({
           model,
@@ -121,6 +127,7 @@ export function getAIProvider(options: { timeoutMs?: number; maxTokens?: number 
       model:
         process.env.AI_MODEL ||
         (useVercelGateway ? "openai/gpt-5.6-sol" : "auto:smart"),
+      authMethod: useVercelGateway ? "oidc" : undefined,
     },
     fetch,
     options.timeoutMs ?? 45_000,
