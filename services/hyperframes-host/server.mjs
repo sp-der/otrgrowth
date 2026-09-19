@@ -9,6 +9,7 @@ import {
   statSync,
 } from "node:fs";
 import { resolve, join } from "node:path";
+import { installGeneratedProject } from "./generator.mjs";
 
 const PORT = Number(process.env.PORT || 8080);
 const PROJECTS_DIR = resolve(process.env.HYPERFRAMES_PROJECTS_DIR || "/data/projects");
@@ -36,6 +37,23 @@ function parseCookies(header = "") {
     if (key) result[key] = decodeURIComponent(value);
   }
   return result;
+}
+
+function readBearer(request) {
+  const value = String(request.headers.authorization || "").trim();
+  return value.toLowerCase().startsWith("bearer ") ? value.slice(7).trim() : "";
+}
+
+async function readJsonBody(request, maxBytes = 4_000_000) {
+  const chunks = [];
+  let total = 0;
+  for await (const chunk of request) {
+    total += chunk.length;
+    if (total > maxBytes) throw new Error("request_too_large");
+    chunks.push(chunk);
+  }
+  if (!chunks.length) return {};
+  return JSON.parse(Buffer.concat(chunks).toString("utf8"));
 }
 
 function readSession(request) {
@@ -498,6 +516,52 @@ const server = http.createServer(async (request, response) => {
         activeProjects: sessions.size,
       }),
     );
+    return;
+  }
+
+  if (request.url === "/otr/generate" && request.method === "POST") {
+    try {
+      const accessToken = readBearer(request);
+      if (!accessToken) throw new Error("studio_auth_missing");
+      const body = await readJsonBody(request);
+      const businessId = typeof body.businessId === "string" ? body.businessId : "";
+      if (!/^[0-9a-f-]{36}$/i.test(businessId)) throw new Error("studio_business_invalid");
+
+      const context = await authorize({ accessToken, businessId });
+      const projectDir = ensureProject(context);
+      const result = await installGeneratedProject({
+        CLI,
+        projectDir,
+        context,
+        payload: body,
+      });
+
+      if (!result.ok) {
+        response.writeHead(422, { "content-type": "application/json", "cache-control": "no-store" });
+        response.end(JSON.stringify(result));
+        return;
+      }
+
+      const current = sessions.get(context.businessId);
+      if (current?.child && current.child.exitCode === null) {
+        current.child.kill("SIGTERM");
+      }
+      sessions.delete(context.businessId);
+      await startPreview(context);
+
+      response.writeHead(200, { "content-type": "application/json", "cache-control": "no-store" });
+      response.end(JSON.stringify(result));
+    } catch (error) {
+      console.error("Video generation install rejected", error);
+      const tooLarge = error instanceof Error && error.message === "request_too_large";
+      response.writeHead(tooLarge ? 413 : 400, { "content-type": "application/json", "cache-control": "no-store" });
+      response.end(
+        JSON.stringify({
+          ok: false,
+          error: error instanceof Error ? error.message : "generation_install_failed",
+        }),
+      );
+    }
     return;
   }
 
