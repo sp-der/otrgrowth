@@ -138,10 +138,13 @@ test("Content Studio uses request-scoped Vercel OIDC without a manually configur
           String(input),
           "https://ai-gateway.vercel.sh/v1/chat/completions",
         );
+        const headers = new Headers(init?.headers);
         assert.equal(
-          new Headers(init?.headers).get("authorization"),
+          headers.get("authorization"),
           "Bearer test-vercel-request-oidc-token",
         );
+        assert.equal(headers.get("ai-gateway-auth-method"), "oidc");
+        assert.equal(headers.get("ai-gateway-protocol-version"), "0.0.1");
         const body = JSON.parse(String(init?.body)) as { model?: string };
         assert.equal(body.model, "openai/gpt-5.6-sol");
         return Response.json({
