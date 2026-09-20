@@ -49,6 +49,15 @@ test("Content Studio host contains no custom rendering engine", async () => {
   assert.doesNotMatch(source, /ffmpeg.*spawn|puppeteer.*launch|compositionHTML|renderComposition/);
 });
 
+test("Website capture accepts a usable screenshot despite Chromium background noise", async () => {
+  const source = await readFile("services/hyperframes-host/generator.mjs", "utf8");
+  assert.match(source, /--disable-background-networking/);
+  assert.match(source, /--disable-sync/);
+  assert.match(source, /statSync\(output\)\.size >= 5_000/);
+  assert.match(source, /PHONE_REGISTRATION_ERROR/);
+  assert.doesNotMatch(source, /result\.status !== 0 \|\| !existsSync\(output\)/);
+});
+
 
 test("Video generator requires authentication before AI or Railway work", async () => {
   const response = await GENERATE(
@@ -144,6 +153,10 @@ test("Autonomous asset scout resolves the OTR Services portfolio without manual 
     "https://pressedinpink.com/",
     "https://jmb2creations.com/",
   ]);
+  assert.equal(
+    websites.some((url) => url.includes("otrservicesie.com")),
+    false,
+  );
 });
 
 test("Manual asset sourcing remains an explicit override", () => {
