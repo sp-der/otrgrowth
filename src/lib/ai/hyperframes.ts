@@ -11,7 +11,11 @@ export const videoGeneratorInputSchema = z.object({
   aspectRatio: z.enum(["9:16", "16:9", "1:1"]),
   style: z.string().trim().min(1).max(500),
   cta: z.string().trim().max(500),
-  websites: z.array(z.url().refine((value) => value.startsWith("https://"), "Use HTTPS URLs")).max(8),
+  autoAssets: z.boolean().default(true),
+  websites: z
+    .array(z.url().refine((value) => value.startsWith("https://"), "Use HTTPS URLs"))
+    .max(8)
+    .default([]),
   logo: z
     .object({
       name: z.string().trim().min(1).max(200),
@@ -58,6 +62,7 @@ HARD REQUIREMENTS:
 - Timeline scene durations must fit completely inside ${input.durationSeconds} seconds.
 - Use only local project assets from this manifest: ${JSON.stringify(assetManifest(input))}.
 - Website screenshot assets are full-page captures. Crop/position them with CSS to create device/browser-window shots, pans, zooms, layered cards, and dynamic reveals.
+- When automatic asset scouting is enabled, the website captures are candidate proof selected from Business DNA, campaign context, and approved portfolio sources. Use only the captures that strengthen the requested story; do not force every candidate into the edit.
 - If a logo asset exists, use it for the intro/end card. Never redraw or reinterpret the logo.
 - Do not fetch remote media at playback time. Do not use iframes, forms, network fetch, WebSockets, localStorage, cookies, or navigation.
 - External code is limited to GSAP from https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js when motion needs it.
@@ -90,6 +95,7 @@ function userMessage(
       aspectRatio: input.aspectRatio,
       style: input.style,
       cta: input.cta,
+      autoAssets: input.autoAssets,
       websites: input.websites,
       logoProvided: Boolean(input.logo),
       assetManifest: assetManifest(input),
