@@ -135,6 +135,58 @@ ${JSON.stringify(context)}
 Make the scenes feel intentionally directed. Website captures should be presented with browser/device framing, depth, movement, cropping and transitions rather than simply filling the screen.`;
 }
 
+function setOpeningTagAttribute(
+  openingTag: string,
+  name: string,
+  value: string | number,
+) {
+  const attribute = new RegExp(
+    `\\\\s+${name}\\\\s*=\\\\s*(?:"[^"]*"|'[^']*'|[^\\\\s>]+)`,
+    "gi",
+  );
+  const stripped = openingTag.replace(attribute, "");
+  return stripped.replace(/\\s*(\\/?>)$/, ` ${name}="${String(value)}"$1`);
+}
+
+export function normalizeHyperframesMetadata(
+  html: string,
+  input: Pick<VideoGeneratorInput, "durationSeconds" | "aspectRatio">,
+) {
+  const { width, height } = canvas(input.aspectRatio);
+  const byMainId = html.match(
+    /<([a-z][\\w:-]*)\\b[^>]*\\bid\\s*=\\s*(["'])main\\2[^>]*>/i,
+  );
+  const byComposition = html.match(
+    /<([a-z][\\w:-]*)\\b[^>]*\\bdata-composition-id\\s*=\\s*(["'])[^"']+\\2[^>]*>/i,
+  );
+  const bodyRoot = html.match(
+    /<body\\b[^>]*>\\s*(<(?!script\\b|style\\b|link\\b|meta\\b)([a-z][\\w:-]*)\\b[^>]*>)/i,
+  );
+
+  const openingTag = byMainId?.[0] ?? byComposition?.[0] ?? bodyRoot?.[1];
+  if (!openingTag) {
+    throw new Error(
+      "The generated composition is missing a usable HyperFrames root element.",
+    );
+  }
+
+  const requiredAttributes: Array<[string, string | number]> = [
+    ["id", "main"],
+    ["data-composition-id", "main"],
+    ["data-start", "0"],
+    ["data-duration", input.durationSeconds],
+    ["data-width", width],
+    ["data-height", height],
+  ];
+
+  const normalizedTag = requiredAttributes.reduce(
+    (tag, [name, value]) => setOpeningTagAttribute(tag, name, value),
+    openingTag,
+  );
+
+  return html.replace(openingTag, normalizedTag);
+}
+
 function parseGenerated(raw: string, input: VideoGeneratorInput) {
   let parsed: unknown;
   try {
@@ -142,20 +194,29 @@ function parseGenerated(raw: string, input: VideoGeneratorInput) {
   } catch {
     throw new Error("The AI returned invalid JSON.");
   }
+
   const result = generatedSchema.parse(parsed);
+  const normalized = generatedSchema.parse({
+    ...result,
+    html: normalizeHyperframesMetadata(result.html, input),
+  });
   const { width, height } = canvas(input.aspectRatio);
   const required = [
+    'id="main"',
     'data-composition-id="main"',
+    'data-start="0"',
     `data-duration="${input.durationSeconds}"`,
     `data-width="${width}"`,
     `data-height="${height}"`,
   ];
   for (const token of required) {
-    if (!result.html.includes(token)) {
-      throw new Error(`The generated composition is missing required HyperFrames metadata: ${token}`);
+    if (!normalized.html.includes(token)) {
+      throw new Error(
+        `The generated composition could not be normalized for HyperFrames metadata: ${token}`,
+      );
     }
   }
-  return result;
+  return normalized;
 }
 
 export async function generateHyperframesProject(
