@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { z } from "zod";
 import { readLimited } from "@/lib/ai/read-limited";
 import {
@@ -243,13 +244,35 @@ export async function POST(request: Request) {
     };
 
     if (shotPlan.useGeneratedVideo && shotPlan.shot) {
+      const retryWindow = new Date().toISOString().slice(0, 10);
+      const idempotencyKey =
+        "otr-v1-" +
+        createHash("sha256")
+          .update(
+            JSON.stringify({
+              retryWindow,
+              userId,
+              businessId: resolvedInput.businessId,
+              prompt: resolvedInput.prompt,
+              durationSeconds: resolvedInput.durationSeconds,
+              aspectRatio: resolvedInput.aspectRatio,
+              style: resolvedInput.style,
+              cta: resolvedInput.cta,
+            }),
+          )
+          .digest("hex")
+          .slice(0, 48);
+
       const generatedVideo = await generateAutonomousVideo(
         {
           prompt: shotPlan.shot.prompt,
           aspectRatio: resolvedInput.aspectRatio as "9:16" | "16:9",
           maxBudgetUsd: resolvedInput.videoBudgetUsd,
         },
-        { pollTimeoutMs: 150_000 },
+        {
+          pollTimeoutMs: 150_000,
+          idempotencyKey,
+        },
       );
       const assetPath = await storeGeneratedVideo(
         token,
