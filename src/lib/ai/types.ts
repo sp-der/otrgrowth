@@ -3,7 +3,11 @@ export interface AIProvider {
   complete(messages: AIMessage[]): Promise<string>;
 }
 export type AIErrorCode =
-  "GATEWAY_NOT_CONFIGURED" | "PROVIDER_UNAVAILABLE" | "MALFORMED_RESPONSE";
+  | "GATEWAY_NOT_CONFIGURED"
+  | "GATEWAY_PAYMENT_REQUIRED"
+  | "GATEWAY_ACCESS_DENIED"
+  | "PROVIDER_UNAVAILABLE"
+  | "MALFORMED_RESPONSE";
 export class AIError extends Error {
   constructor(
     public code: AIErrorCode,
