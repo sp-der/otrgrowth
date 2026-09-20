@@ -4,6 +4,7 @@ import {
   generateHyperframesProject,
   videoGeneratorInputSchema,
 } from "@/lib/ai/hyperframes";
+import { resolveCreativeWebsites } from "@/lib/ai/asset-scout";
 import { AIError } from "@/lib/ai/types";
 import { businessProfileSchema, campaignSchema } from "@/lib/domain/schemas";
 import { getSupabaseConfig } from "@/lib/supabase/config";
@@ -122,13 +123,21 @@ export async function POST(request: Request) {
 
   try {
     const context = await businessContext(token, parsed.data.businessId);
+    const resolvedInput = {
+      ...parsed.data,
+      websites: resolveCreativeWebsites(
+        parsed.data,
+        context.profile,
+        context.campaigns,
+      ),
+    };
     let generated = await generateHyperframesProject(
-      parsed.data,
+      resolvedInput,
       context.profile,
       context.campaigns,
     );
 
-    let install = await installProject(token, parsed.data, generated);
+    let install = await installProject(token, resolvedInput, generated);
     let result = (await install.json()) as {
       ok?: boolean;
       error?: string;
@@ -139,12 +148,12 @@ export async function POST(request: Request) {
 
     if (!install.ok && result.findings && install.status === 422) {
       generated = await generateHyperframesProject(
-        parsed.data,
+        resolvedInput,
         context.profile,
         context.campaigns,
         { html: generated.html, findings: result.findings },
       );
-      install = await installProject(token, parsed.data, generated);
+      install = await installProject(token, resolvedInput, generated);
       result = (await install.json()) as typeof result;
     }
 
@@ -164,6 +173,8 @@ export async function POST(request: Request) {
       title: generated.title,
       summary: generated.summary,
       captures: result.captures ?? [],
+      assetMode: resolvedInput.autoAssets ? "auto" : "manual",
+      websites: resolvedInput.websites,
       generatedAt: new Date().toISOString(),
     });
   } catch (error) {
