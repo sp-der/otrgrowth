@@ -1,4 +1,8 @@
 import {
+  AUTONOMOUS_VIDEO_ESTIMATED_COST_USD,
+  AUTONOMOUS_VIDEO_MODEL,
+} from "@/lib/ai/video-gateway";
+import {
   getVercelRuntimeOidcToken,
   inspectVercelGatewayOidc,
 } from "@/lib/ai/vercel-oidc";
@@ -12,11 +16,18 @@ export async function GET() {
   const model =
     process.env.AI_MODEL ||
     (usingVercelGateway ? "openai/gpt-5.6-sol" : "auto:smart");
-  const gateway = usingVercelGateway
-    ? await inspectVercelGatewayOidc(vercelOidc, model)
-    : null;
+  const [gateway, videoGateway] = usingVercelGateway
+    ? await Promise.all([
+        inspectVercelGatewayOidc(vercelOidc, model),
+        inspectVercelGatewayOidc(vercelOidc, AUTONOMOUS_VIDEO_MODEL),
+      ])
+    : [null, null];
   const aiConfigured = Boolean(
     explicitKey || (gateway?.authenticated && gateway.modelAvailable),
+  );
+  const videoConfigured = Boolean(
+    process.env.AI_GATEWAY_API_KEY?.trim() ||
+      (videoGateway?.authenticated && videoGateway.modelAvailable),
   );
   const studioHost = Boolean(
     (process.env.HYPERFRAMES_STUDIO_URL ||
@@ -37,6 +48,10 @@ export async function GET() {
       gatewayModelAvailable: gateway?.modelAvailable ?? null,
       gatewayCreditsStatus: gateway?.creditsStatus ?? null,
       gatewayConfigStatus: gateway?.configStatus ?? null,
+      videoConfigured,
+      videoModel: AUTONOMOUS_VIDEO_MODEL,
+      videoModelAvailable: videoGateway?.modelAvailable ?? null,
+      maximumPaidVideoCostUsd: AUTONOMOUS_VIDEO_ESTIMATED_COST_USD,
     },
     { headers: { "Cache-Control": "no-store" } },
   );
