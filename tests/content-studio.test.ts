@@ -55,7 +55,7 @@ test("Website capture accepts a usable screenshot despite Chromium background no
   assert.match(source, /--disable-sync/);
   assert.match(source, /statSync\(output\)\.size >= 5_000/);
   assert.match(source, /PHONE_REGISTRATION_ERROR/);
-  assert.doesNotMatch(source, /result\.status !== 0 \|\| !existsSync\(output\)/);
+  assert.match(source, /const captureReady/);
 });
 
 
