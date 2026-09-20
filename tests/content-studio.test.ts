@@ -96,6 +96,28 @@ test("Video generator accepts bounded HTTPS website briefs", () => {
   );
 });
 
+test("HyperFrames metadata is normalized before validation", () => {
+  const input = { durationSeconds: 30 as const, aspectRatio: "9:16" as const };
+
+  const missing = normalizeHyperframesMetadata(
+    '<html><body><div id="main" class="composition"><section class="clip"></section></div></body></html>',
+    input,
+  );
+  assert.match(missing, /data-composition-id="main"/);
+  assert.match(missing, /data-start="0"/);
+  assert.match(missing, /data-duration="30"/);
+  assert.match(missing, /data-width="1080"/);
+  assert.match(missing, /data-height="1920"/);
+
+  const incorrect = normalizeHyperframesMetadata(
+    "<html><body><main data-composition-id='wrong' data-duration='15' data-width='1' data-height='1'></main></body></html>",
+    input,
+  );
+  assert.match(incorrect, /id="main"/);
+  assert.match(incorrect, /data-composition-id="main"/);
+  assert.match(incorrect, /data-duration="30"/);
+  assert.doesNotMatch(incorrect, /data-composition-id=['"]wrong/);
+});
 test("Autonomous asset scout resolves the OTR Services portfolio without manual URLs", () => {
   const workspace = seedWorkspace();
   const input = videoGeneratorInputSchema.parse({
