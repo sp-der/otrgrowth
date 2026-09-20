@@ -6,7 +6,11 @@ import { POST as GENERATE } from "../src/app/api/content-studio/generate/route";
 import { GET as CAPABILITIES } from "../src/app/api/content-studio/capabilities/route";
 import { getAIProvider } from "../src/lib/ai/provider";
 import { resolveCreativeWebsites } from "../src/lib/ai/asset-scout";
-import { normalizeHyperframesMetadata, videoGeneratorInputSchema } from "../src/lib/ai/hyperframes";
+import {
+  normalizeHyperframesMetadata,
+  normalizeHyperframesMotionContract,
+  videoGeneratorInputSchema,
+} from "../src/lib/ai/hyperframes";
 import {
   AUTONOMOUS_VIDEO_ESTIMATED_COST_USD,
   AUTONOMOUS_VIDEO_MODEL,
@@ -127,6 +131,23 @@ test("HyperFrames metadata is normalized before validation", () => {
   assert.match(incorrect, /data-duration="30"/);
   assert.doesNotMatch(incorrect, /data-composition-id=['"]wrong/);
 });
+test("HyperFrames clip motion contract removes GSAP autoAlpha before validation", () => {
+  const html = `
+    <html><body>
+      <section id="hook" class="clip"></section>
+      <script>
+        const tl = gsap.timeline({ paused: true });
+        tl.from("#hook", { autoAlpha: 0, duration: 0.4 });
+        tl.to(".headline", { autoAlpha: 1, y: 0 });
+      </script>
+    </body></html>
+  `;
+  const normalized = normalizeHyperframesMotionContract(html);
+  assert.doesNotMatch(normalized, /\bautoAlpha\s*:/);
+  assert.match(normalized, /opacity:\s*0/);
+  assert.match(normalized, /opacity:\s*1/);
+});
+
 test("Autonomous asset scout resolves the OTR Services portfolio without manual URLs", () => {
   const workspace = seedWorkspace();
   const input = videoGeneratorInputSchema.parse({

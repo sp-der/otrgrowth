@@ -77,6 +77,8 @@ HARD REQUIREMENTS:
 - Do not fetch remote media at playback time. Do not use iframes, forms, network fetch, WebSockets, localStorage, cookies, or navigation.
 - External code is limited to GSAP from https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js when motion needs it.
 - For GSAP, create one paused timeline synchronously and assign it to window.__timelines["main"]. The timeline must be seekable and deterministic.
+- NEVER animate visibility, display, or autoAlpha on an element with class="clip". HyperFrames owns clip visibility. Animate a child wrapper instead. If fading a clip itself is unavoidable, use opacity only.
+- Do not duplicate the same media source at the same start/duration. Reuse one media node or vary its timing so HyperFrames discovers it once.
 - Do not use setTimeout, setInterval, requestAnimationFrame loops, random values, Date.now, autoplay APIs, or user interaction.
 - Everything visible must remain inside the canvas and safe margins.
 - Use semantic HTML/CSS and keep text editable in Studio.
@@ -151,6 +153,13 @@ function setOpeningTagAttribute(
       ' ' + name + '="' + String(value) + '"' + closing,
   );
 }
+export function normalizeHyperframesMotionContract(html: string) {
+  // HyperFrames owns clip visibility. GSAP autoAlpha mutates both opacity and
+  // visibility, which violates the official clip contract. Opacity preserves
+  // the intended fade while leaving visibility under HyperFrames control.
+  return html.replace(/\bautoAlpha\s*:/g, "opacity:");
+}
+
 export function normalizeHyperframesMetadata(
   html: string,
   input: Pick<VideoGeneratorInput, "durationSeconds" | "aspectRatio">,
@@ -201,7 +210,9 @@ function parseGenerated(raw: string, input: VideoGeneratorInput) {
   const result = generatedSchema.parse(parsed);
   const normalized = generatedSchema.parse({
     ...result,
-    html: normalizeHyperframesMetadata(result.html, input),
+    html: normalizeHyperframesMotionContract(
+      normalizeHyperframesMetadata(result.html, input),
+    ),
   });
   const { width, height } = canvas(input.aspectRatio);
   const required = [
