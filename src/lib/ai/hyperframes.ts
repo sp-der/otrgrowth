@@ -148,7 +148,7 @@ function setOpeningTagAttribute(
   return stripped.replace(
     /\s*(\/?>)$/,
     (_match, closing: string) =>
-      " " + name + "=\\"" + String(value) + "\\"" + closing,
+      ' ' + name + '="' + String(value) + '"' + closing,
   );
 }
 export function normalizeHyperframesMetadata(
