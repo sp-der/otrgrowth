@@ -21,6 +21,7 @@ function authHeaders() {
   if (explicitKey) {
     return {
       Authorization: `Bearer ${explicitKey}`,
+      "ai-gateway-auth-method": "api-key",
       "ai-gateway-protocol-version": "0.0.1",
     };
   }
