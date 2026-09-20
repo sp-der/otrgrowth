@@ -12,6 +12,8 @@ export const videoGeneratorInputSchema = z.object({
   style: z.string().trim().min(1).max(500),
   cta: z.string().trim().max(500),
   autoAssets: z.boolean().default(true),
+  aiVideo: z.boolean().default(true),
+  videoBudgetUsd: z.number().min(0).max(0.5).default(0.5),
   websites: z
     .array(z.url().refine((value) => value.startsWith("https://"), "Use HTTPS URLs"))
     .max(8)
@@ -41,14 +43,21 @@ function canvas(aspectRatio: VideoGeneratorInput["aspectRatio"]) {
   return { width: 1080, height: 1920 };
 }
 
-function assetManifest(input: VideoGeneratorInput) {
+function assetManifest(
+  input: VideoGeneratorInput,
+  generatedAssets: string[] = [],
+) {
   return [
     ...(input.logo ? ["assets/brand-logo." + input.logo.mimeType.split("/")[1].replace("jpeg", "jpg")] : []),
     ...input.websites.map((_, index) => `assets/site-${String(index + 1).padStart(2, "0")}.png`),
+    ...generatedAssets,
   ];
 }
 
-function systemMessage(input: VideoGeneratorInput): string {
+function systemMessage(
+  input: VideoGeneratorInput,
+  generatedAssets: string[] = [],
+): string {
   const { width, height } = canvas(input.aspectRatio);
   return `You are OTR Growth's video creative director and a native HyperFrames composition author.
 
@@ -60,7 +69,8 @@ HARD REQUIREMENTS:
 - One root composition element with id="main", data-composition-id="main", data-start="0", data-duration="${input.durationSeconds}", data-width="${width}", data-height="${height}".
 - Use scene elements with class="clip", data-start, data-duration, and data-track-index.
 - Timeline scene durations must fit completely inside ${input.durationSeconds} seconds.
-- Use only local project assets from this manifest: ${JSON.stringify(assetManifest(input))}.
+- Use only local project assets from this manifest: ${JSON.stringify(assetManifest(input, generatedAssets))}.
+- If "assets/ai-hero.mp4" is present, it is a short cinematic support shot. Use it only where it meaningfully elevates the hook, hero beat, or transition. Never treat generated footage as proof of a real client result or as the source of logos, website UI, prices, URLs, claims, or readable brand copy.
 - Website screenshot assets are full-page captures. Crop/position them with CSS to create device/browser-window shots, pans, zooms, layered cards, and dynamic reveals.
 - When automatic asset scouting is enabled, the website captures are candidate proof selected from Business DNA, campaign context, and approved portfolio sources. Use only the captures that strengthen the requested story; do not force every candidate into the edit.
 - If a logo asset exists, use it for the intro/end card. Never redraw or reinterpret the logo.
@@ -85,6 +95,7 @@ function userMessage(
   profile: BusinessProfile,
   campaigns: Campaign[],
   repair?: { html: string; findings: string },
+  generatedAssets: string[] = [],
 ): string {
   const context = {
     business: profile,
@@ -96,9 +107,11 @@ function userMessage(
       style: input.style,
       cta: input.cta,
       autoAssets: input.autoAssets,
+      aiVideo: input.aiVideo,
+      videoBudgetUsd: input.videoBudgetUsd,
       websites: input.websites,
       logoProvided: Boolean(input.logo),
-      assetManifest: assetManifest(input),
+      assetManifest: assetManifest(input, generatedAssets),
     },
   };
 
@@ -150,11 +163,21 @@ export async function generateHyperframesProject(
   profile: BusinessProfile,
   campaigns: Campaign[],
   repair?: { html: string; findings: string },
+  generatedAssets: string[] = [],
 ) {
   const provider = getAIProvider({ timeoutMs: 90_000, maxTokens: 12_000 });
   const messages: AIMessage[] = [
-    { role: "system", content: systemMessage(input) },
-    { role: "user", content: userMessage(input, profile, campaigns, repair) },
+    { role: "system", content: systemMessage(input, generatedAssets) },
+    {
+      role: "user",
+      content: userMessage(
+        input,
+        profile,
+        campaigns,
+        repair,
+        generatedAssets,
+      ),
+    },
   ];
   return parseGenerated(await provider.complete(messages), input);
 }
