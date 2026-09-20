@@ -34,6 +34,7 @@ const config: NextConfig = {
         { source: "/assets/:path*", destination: `${studioHost}/assets/:path*` },
         { source: "/icons/:path*", destination: `${studioHost}/icons/:path*` },
         { source: "/favicon.svg", destination: `${studioHost}/favicon.svg` },
+        { source: "/otr/:path*", destination: `${studioHost}/otr/:path*` },
         { source: "/api/:path*", destination: `${studioHost}/api/:path*` },
       ],
     };
