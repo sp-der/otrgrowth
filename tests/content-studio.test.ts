@@ -5,7 +5,9 @@ import { POST } from "../src/app/api/content-studio/session/route";
 import { POST as GENERATE } from "../src/app/api/content-studio/generate/route";
 import { GET as CAPABILITIES } from "../src/app/api/content-studio/capabilities/route";
 import { getAIProvider } from "../src/lib/ai/provider";
+import { resolveCreativeWebsites } from "../src/lib/ai/asset-scout";
 import { videoGeneratorInputSchema } from "../src/lib/ai/hyperframes";
+import { seedWorkspace } from "../src/lib/data/seed";
 
 test("Content Studio session requires OTR authentication", async () => {
   const response = await POST(
@@ -85,6 +87,53 @@ test("Video generator accepts bounded HTTPS website briefs", () => {
       websites: ["http://127.0.0.1/private"],
     }).success,
     false,
+  );
+});
+
+test("Autonomous asset scout resolves the OTR Services portfolio without manual URLs", () => {
+  const workspace = seedWorkspace();
+  const input = videoGeneratorInputSchema.parse({
+    businessId: workspace.businesses[0].id,
+    prompt: "Create a premium portfolio reel showing the websites we have built.",
+    durationSeconds: 30,
+    aspectRatio: "9:16",
+    style: "premium agency reel",
+    cta: "Built to represent your business right.",
+  });
+
+  assert.equal(input.autoAssets, true);
+  assert.deepEqual(input.websites, []);
+
+  const websites = resolveCreativeWebsites(
+    input,
+    workspace.businesses[0].profile,
+    workspace.campaigns,
+  );
+
+  assert.deepEqual(websites, [
+    "https://pacificstayproperties.com/",
+    "https://mdhgrill.com/",
+    "https://pressedinpink.com/",
+    "https://jmb2creations.com/",
+  ]);
+});
+
+test("Manual asset sourcing remains an explicit override", () => {
+  const workspace = seedWorkspace();
+  const input = videoGeneratorInputSchema.parse({
+    businessId: workspace.businesses[0].id,
+    prompt: "Create a focused website showcase.",
+    durationSeconds: 15,
+    aspectRatio: "9:16",
+    style: "clean",
+    cta: "",
+    autoAssets: false,
+    websites: ["https://example.com"],
+  });
+
+  assert.deepEqual(
+    resolveCreativeWebsites(input, workspace.businesses[0].profile, workspace.campaigns),
+    ["https://example.com/"],
   );
 });
 

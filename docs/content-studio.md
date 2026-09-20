@@ -24,6 +24,19 @@ The Railway host runs the official HyperFrames CLI preview server. That server s
 
 The browser remains on the OTR Growth domain. Railway is an implementation detail.
 
+## Autonomous asset sourcing
+
+The generator defaults to autonomous asset sourcing so a normal creative run only needs a brief, duration, format and visual direction.
+
+1. OTR Growth loads the authenticated Business DNA and campaign context.
+2. The server-side Asset Scout collects public HTTPS candidates from the brief, Business DNA, campaign copy and approved business portfolio sources.
+3. For OTR Services, the current approved portfolio registry includes Pacific Stay Properties, Muerto de Hambre Grill, Pressed In Pink and JMB 2 Creations.
+4. The AI director receives the candidate capture manifest and decides which proof belongs in the requested story. It is explicitly told not to force every candidate into the edit.
+5. The Railway host re-validates every URL, rejects private-network destinations, captures the sites with Chromium, stores the captures as local project assets and runs the official HyperFrames check.
+6. Manual URL sourcing remains available as an explicit override.
+
+Asset scouting does not publish content, mutate ad accounts or spend advertising money.
+
 ## Persistence
 
 Production should mount a Railway volume at `/data`. Without a volume, project edits can be lost when Railway replaces the container.
