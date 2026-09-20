@@ -7,6 +7,12 @@ import { GET as CAPABILITIES } from "../src/app/api/content-studio/capabilities/
 import { getAIProvider } from "../src/lib/ai/provider";
 import { resolveCreativeWebsites } from "../src/lib/ai/asset-scout";
 import { videoGeneratorInputSchema } from "../src/lib/ai/hyperframes";
+import {
+  AUTONOMOUS_VIDEO_ESTIMATED_COST_USD,
+  AUTONOMOUS_VIDEO_MODEL,
+  generateAutonomousVideo,
+} from "../src/lib/ai/video-gateway";
+import { reviewContactSheet } from "../src/lib/ai/visual-qa";
 import { seedWorkspace } from "../src/lib/data/seed";
 
 test("Content Studio session requires OTR authentication", async () => {
@@ -137,12 +143,195 @@ test("Manual asset sourcing remains an explicit override", () => {
   );
 });
 
+test("Autonomous video defaults stay inside the hard spend ceiling", () => {
+  const parsed = videoGeneratorInputSchema.parse({
+    businessId: "00000000-0000-4000-8000-000000000001",
+    prompt: "Create a premium OTR Services portfolio video.",
+    durationSeconds: 30,
+    aspectRatio: "9:16",
+    style: "premium",
+    cta: "Built to represent your business right.",
+  });
+
+  assert.equal(parsed.aiVideo, true);
+  assert.equal(parsed.videoBudgetUsd, 0.5);
+  assert.equal(AUTONOMOUS_VIDEO_ESTIMATED_COST_USD, 0.4);
+  assert.equal(
+    videoGeneratorInputSchema.safeParse({
+      ...parsed,
+      videoBudgetUsd: 0.51,
+    }).success,
+    false,
+  );
+});
+
+test("Autonomous video budget blocks paid requests before fetch", async () => {
+  let calls = 0;
+  await assert.rejects(
+    () =>
+      generateAutonomousVideo(
+        {
+          prompt: "Cinematic purple creative studio motion with no text or logos.",
+          aspectRatio: "9:16",
+          maxBudgetUsd: 0.39,
+        },
+        {
+          fetcher: async () => {
+            calls += 1;
+            return Response.json({});
+          },
+        },
+      ),
+    /above this generation's video budget/,
+  );
+  assert.equal(calls, 0);
+});
+
+test("Autonomous video starts one idempotent paid operation and polls without retrying", async () => {
+  const previous = process.env.AI_GATEWAY_API_KEY;
+  process.env.AI_GATEWAY_API_KEY = "test-gateway-key";
+  const calls: Array<{ url: string; init?: RequestInit }> = [];
+  let statusCalls = 0;
+  try {
+    const result = await generateAutonomousVideo(
+      {
+        prompt: "Cinematic purple creative studio motion with no text or logos.",
+        aspectRatio: "9:16",
+        maxBudgetUsd: 0.5,
+      },
+      {
+        idempotencyKey: "otr-test-operation",
+        pollIntervalMs: 0,
+        pollTimeoutMs: 5_000,
+        sleep: async () => {},
+        fetcher: async (input, init) => {
+          const url = String(input);
+          calls.push({ url, init });
+          if (url.endsWith("/v1/credits")) {
+            return Response.json({ balance: "10.00" });
+          }
+          if (url.endsWith("/video-model/start")) {
+            const headers = new Headers(init?.headers);
+            assert.equal(headers.get("ai-gateway-auth-method"), "api-key");
+            assert.equal(headers.get("ai-video-model-specification-version"), "4");
+            assert.equal(headers.get("ai-model-id"), AUTONOMOUS_VIDEO_MODEL);
+            assert.equal(headers.get("idempotency-key"), "otr-test-operation");
+            const body = JSON.parse(String(init?.body)) as {
+              n?: number;
+              duration?: number;
+              resolution?: string;
+              generateAudio?: boolean;
+            };
+            assert.equal(body.n, 1);
+            assert.equal(body.duration, 4);
+            assert.equal(body.resolution, "720p");
+            assert.equal(body.generateAudio, false);
+            return Response.json({ operation: { id: "op-1" } });
+          }
+          if (url.endsWith("/video-model/status")) {
+            statusCalls += 1;
+            if (statusCalls === 1) return Response.json({ status: "pending" });
+            return Response.json({
+              status: "completed",
+              videos: [
+                {
+                  type: "url",
+                  url: "https://cdn.example.com/generated.mp4",
+                  mediaType: "video/mp4",
+                },
+              ],
+            });
+          }
+          throw new Error(`Unexpected fetch: ${url}`);
+        },
+      },
+    );
+
+    assert.equal(result.model, AUTONOMOUS_VIDEO_MODEL);
+    assert.equal(result.estimatedCostUsd, 0.4);
+    assert.equal(result.video.type, "url");
+    assert.equal(
+      calls.filter(({ url }) => url.endsWith("/video-model/start")).length,
+      1,
+    );
+    assert.equal(statusCalls, 2);
+  } finally {
+    if (previous === undefined) delete process.env.AI_GATEWAY_API_KEY;
+    else process.env.AI_GATEWAY_API_KEY = previous;
+  }
+});
+
+test("Visual QA sends the HyperFrames contact sheet through native Gateway v4", async () => {
+  const previous = process.env.AI_GATEWAY_API_KEY;
+  process.env.AI_GATEWAY_API_KEY = "test-gateway-key";
+  try {
+    const input = videoGeneratorInputSchema.parse({
+      businessId: "00000000-0000-4000-8000-000000000001",
+      prompt: "Create a professional OTR Services portfolio ad.",
+      durationSeconds: 30,
+      aspectRatio: "9:16",
+      style: "premium dark purple agency reel",
+      cta: "Built to represent your business right.",
+    });
+    const review = await reviewContactSheet(
+      input,
+      Buffer.from("fake-jpeg").toString("base64"),
+      "HyperFrames check passed.",
+      async (request, init) => {
+        assert.equal(
+          String(request),
+          "https://ai-gateway.vercel.sh/v4/ai/language-model",
+        );
+        const headers = new Headers(init?.headers);
+        assert.equal(headers.get("ai-gateway-auth-method"), "api-key");
+        assert.equal(headers.get("ai-language-model-specification-version"), "4");
+        const body = JSON.parse(String(init?.body)) as {
+          prompt?: Array<{
+            role?: string;
+            content?: Array<{
+              type?: string;
+              mediaType?: string;
+              data?: { type?: string; data?: string };
+            }>;
+          }>;
+        };
+        const filePart = body.prompt?.[1]?.content?.find(
+          (part) => part.type === "file",
+        );
+        assert.equal(filePart?.mediaType, "image/jpeg");
+        assert.equal(filePart?.data?.type, "data");
+        assert.ok(filePart?.data?.data);
+        return Response.json({
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify({
+                approved: true,
+                summary: "Frames are coherent and ready.",
+                findings: [],
+              }),
+            },
+          ],
+        });
+      },
+    );
+    assert.equal(review.approved, true);
+  } finally {
+    if (previous === undefined) delete process.env.AI_GATEWAY_API_KEY;
+    else process.env.AI_GATEWAY_API_KEY = previous;
+  }
+});
+
 test("HyperFrames host generation uses official check and system Chromium, not a custom renderer", async () => {
   const source = await readFile("services/hyperframes-host/generator.mjs", "utf8");
   assert.match(source, /"check", projectDir/);
   assert.match(source, /HYPERFRAMES_BROWSER_PATH/);
   assert.match(source, /--screenshot=/);
   assert.match(source, /data-composition-id/);
+  assert.match(source, /"snapshot"/);
+  assert.match(source, /ai-hero\.mp4/);
+  assert.match(source, /"render"/);
+  assert.match(source, /"quality",\s*"high"/);
   assert.doesNotMatch(source, /ffmpeg|puppeteer/);
 });
 
