@@ -141,11 +141,11 @@ function setOpeningTagAttribute(
   value: string | number,
 ) {
   const attribute = new RegExp(
-    `\\\\s+${name}\\\\s*=\\\\s*(?:"[^"]*"|'[^']*'|[^\\\\s>]+)`,
+    \`\\s+\${name}\\s*=\\s*(?:"[^"]*"|'[^']*'|[^\\s>]+)\`,
     "gi",
   );
   const stripped = openingTag.replace(attribute, "");
-  return stripped.replace(/\\s*(\\/?>)$/, ` ${name}="${String(value)}"$1`);
+  return stripped.replace(/\s*(\/?>)$/, \` \${name}="\${String(value)}"$1\`);
 }
 
 export function normalizeHyperframesMetadata(
@@ -154,13 +154,13 @@ export function normalizeHyperframesMetadata(
 ) {
   const { width, height } = canvas(input.aspectRatio);
   const byMainId = html.match(
-    /<([a-z][\\w:-]*)\\b[^>]*\\bid\\s*=\\s*(["'])main\\2[^>]*>/i,
+    /<([a-z][\w:-]*)\b[^>]*\bid\s*=\s*(["'])main\2[^>]*>/i,
   );
   const byComposition = html.match(
-    /<([a-z][\\w:-]*)\\b[^>]*\\bdata-composition-id\\s*=\\s*(["'])[^"']+\\2[^>]*>/i,
+    /<([a-z][\w:-]*)\b[^>]*\bdata-composition-id\s*=\s*(["'])[^"']+\2[^>]*>/i,
   );
   const bodyRoot = html.match(
-    /<body\\b[^>]*>\\s*(<(?!script\\b|style\\b|link\\b|meta\\b)([a-z][\\w:-]*)\\b[^>]*>)/i,
+    /<body\b[^>]*>\s*(<(?!script\b|style\b|link\b|meta\b)([a-z][\w:-]*)\b[^>]*>)/i,
   );
 
   const openingTag = byMainId?.[0] ?? byComposition?.[0] ?? bodyRoot?.[1];
