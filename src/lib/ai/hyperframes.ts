@@ -141,13 +141,16 @@ function setOpeningTagAttribute(
   value: string | number,
 ) {
   const attribute = new RegExp(
-    \`\\s+\${name}\\s*=\\s*(?:"[^"]*"|'[^']*'|[^\\s>]+)\`,
+    "\\s+" + name + "\\s*=\\s*(?:\"[^\"]*\"|\'[^\']*\'|[^\\s>]+)",
     "gi",
   );
   const stripped = openingTag.replace(attribute, "");
-  return stripped.replace(/\s*(\/?>)$/, \` \${name}="\${String(value)}"$1\`);
+  return stripped.replace(
+    /\s*(\/?>)$/,
+    (_match, closing: string) =>
+      " " + name + "=\\"" + String(value) + "\\"" + closing,
+  );
 }
-
 export function normalizeHyperframesMetadata(
   html: string,
   input: Pick<VideoGeneratorInput, "durationSeconds" | "aspectRatio">,
