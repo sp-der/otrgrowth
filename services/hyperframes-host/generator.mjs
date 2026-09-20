@@ -7,6 +7,7 @@ import {
   readFileSync,
   readdirSync,
   rmSync,
+  statSync,
   writeFileSync,
 } from "node:fs";
 import { join } from "node:path";
@@ -99,6 +100,186 @@ function saveLogo(logo, assetsDir) {
   return `assets/brand-logo.${ext}`;
 }
 
+const MAX_GENERATED_VIDEO_BYTES = 25_000_000;
+
+function validMp4(bytes) {
+  return (
+    Buffer.isBuffer(bytes) &&
+    bytes.length >= 12 &&
+    bytes.subarray(4, 8).toString("ascii") === "ftyp"
+  );
+}
+
+export async function storeGeneratedVideoAsset({ projectDir, source }) {
+  let bytes;
+  if (source?.url) {
+    const url = await publicHttpsUrl(source.url);
+    const response = await fetch(url, {
+      method: "GET",
+      redirect: "error",
+      signal: AbortSignal.timeout(60_000),
+    });
+    if (!response.ok) {
+      await response.body?.cancel();
+      throw new Error(`Generated video download failed with ${response.status}.`);
+    }
+    const contentType = response.headers.get("content-type") || "";
+    const length = Number(response.headers.get("content-length") || "0");
+    if (
+      !contentType.toLowerCase().startsWith("video/") ||
+      (Number.isFinite(length) && length > MAX_GENERATED_VIDEO_BYTES)
+    ) {
+      await response.body?.cancel();
+      throw new Error("Generated video response is not an accepted video asset.");
+    }
+    bytes = Buffer.from(await response.arrayBuffer());
+  } else if (source?.data) {
+    bytes = Buffer.isBuffer(source.data) ? source.data : Buffer.from(source.data);
+  } else {
+    throw new Error("Generated video source is missing.");
+  }
+
+  if (bytes.length > MAX_GENERATED_VIDEO_BYTES || !validMp4(bytes)) {
+    throw new Error("Generated video must be a valid MP4 within the asset limit.");
+  }
+
+  const assetsDir = join(projectDir, "assets");
+  mkdirSync(assetsDir, { recursive: true });
+  const output = join(assetsDir, "ai-hero.mp4");
+  writeFileSync(output, bytes);
+  return { path: "assets/ai-hero.mp4", bytes: bytes.length };
+}
+
+function runSnapshotQa(CLI, projectDir) {
+  const qaDir = join(projectDir, "otr-qa");
+  rmSync(qaDir, { recursive: true, force: true });
+  mkdirSync(qaDir, { recursive: true });
+
+  const result = spawnSync(
+    CLI,
+    [
+      "snapshot",
+      projectDir,
+      "--frames",
+      "5",
+      "--output",
+      qaDir,
+      "--describe",
+      "false",
+      "--no-browser-gpu",
+    ],
+    {
+      env: {
+        ...process.env,
+        CONTAINER: "true",
+        HYPERFRAMES_NO_UPDATE_CHECK: "1",
+        HYPERFRAMES_BROWSER_PATH:
+          process.env.HYPERFRAMES_BROWSER_PATH || "/usr/bin/chromium",
+        PUPPETEER_EXECUTABLE_PATH:
+          process.env.PUPPETEER_EXECUTABLE_PATH || "/usr/bin/chromium",
+        CI: "1",
+      },
+      encoding: "utf8",
+      timeout: 120_000,
+      maxBuffer: 2_000_000,
+    },
+  );
+
+  const findings = [result.stdout, result.stderr].filter(Boolean).join("\n").trim();
+  if (result.status !== 0) {
+    return { ok: false, findings };
+  }
+
+  const contactName = readdirSync(qaDir).find((name) =>
+    /^contact-sheet(?:-\d+)?\.jpg$/i.test(name),
+  );
+  if (!contactName) {
+    return { ok: false, findings: `${findings}\nNo QA contact sheet was produced.`.trim() };
+  }
+
+  const contactPath = join(qaDir, contactName);
+  const bytes = statSync(contactPath).size;
+  if (bytes <= 0 || bytes > 6_000_000) {
+    return {
+      ok: false,
+      findings: `${findings}\nQA contact sheet size was outside the accepted range.`.trim(),
+    };
+  }
+
+  return {
+    ok: true,
+    findings,
+    contactSheetBase64: readFileSync(contactPath).toString("base64"),
+    mediaType: "image/jpeg",
+  };
+}
+
+export function renderGeneratedProject({ CLI, projectDir }) {
+  const renderDir = join(projectDir, "renders");
+  mkdirSync(renderDir, { recursive: true });
+  const output = join(renderDir, "latest.mp4");
+  rmSync(output, { force: true });
+
+  const result = spawnSync(
+    CLI,
+    [
+      "render",
+      projectDir,
+      "--output",
+      output,
+      "--fps",
+      "30",
+      "--quality",
+      "high",
+      "--workers",
+      "1",
+      "--no-browser-gpu",
+    ],
+    {
+      env: {
+        ...process.env,
+        CONTAINER: "true",
+        HYPERFRAMES_NO_UPDATE_CHECK: "1",
+        HYPERFRAMES_BROWSER_PATH:
+          process.env.HYPERFRAMES_BROWSER_PATH || "/usr/bin/chromium",
+        PUPPETEER_EXECUTABLE_PATH:
+          process.env.PUPPETEER_EXECUTABLE_PATH || "/usr/bin/chromium",
+        CI: "1",
+      },
+      encoding: "utf8",
+      timeout: 270_000,
+      maxBuffer: 3_000_000,
+    },
+  );
+
+  const findings = [result.stdout, result.stderr].filter(Boolean).join("\n").trim();
+  if (result.status !== 0 || !existsSync(output)) {
+    return { ok: false, error: "Final HyperFrames render failed.", findings };
+  }
+
+  const bytes = statSync(output).size;
+  if (bytes < 10_000) {
+    rmSync(output, { force: true });
+    return {
+      ok: false,
+      error: "Final HyperFrames render produced an invalid artifact.",
+      findings,
+    };
+  }
+
+  return {
+    ok: true,
+    path: output,
+    bytes,
+    fps: 30,
+    quality: "high",
+  };
+}
+
+export function generatedDeliveryPath(projectDir) {
+  return join(projectDir, "renders", "latest.mp4");
+}
+
 function runCheck(CLI, projectDir) {
   const result = spawnSync(
     CLI,
@@ -134,10 +315,24 @@ export async function installGeneratedProject({ CLI, projectDir, context, payloa
   }
   const websites = Array.isArray(payload.websites) ? payload.websites.slice(0, 8) : [];
   if (!websites.every((value) => typeof value === "string")) throw new Error("Website list is invalid.");
+  const generatedAssets = Array.isArray(payload.generatedAssets)
+    ? payload.generatedAssets.filter((value) => value === "assets/ai-hero.mp4").slice(0, 1)
+    : [];
+  if (
+    Array.isArray(payload.generatedAssets) &&
+    payload.generatedAssets.some((value) => value !== "assets/ai-hero.mp4")
+  ) {
+    throw new Error("Generated asset list is invalid.");
+  }
 
   const assetsDir = join(projectDir, "assets");
   mkdirSync(assetsDir, { recursive: true });
   cleanGeneratedCaptures(assetsDir);
+  if (!generatedAssets.includes("assets/ai-hero.mp4")) {
+    rmSync(join(assetsDir, "ai-hero.mp4"), { force: true });
+  } else if (!existsSync(join(assetsDir, "ai-hero.mp4"))) {
+    throw new Error("The planned generated video asset is missing.");
+  }
 
   const captures = await captureWebsites(websites, assetsDir);
   const logoPath = saveLogo(payload.logo, assetsDir);
@@ -160,6 +355,7 @@ export async function installGeneratedProject({ CLI, projectDir, context, payloa
         websites,
         captures,
         logoPath,
+        generatedAssets,
       },
       null,
       2,
@@ -177,9 +373,25 @@ export async function installGeneratedProject({ CLI, projectDir, context, payloa
     };
   }
 
+  const qa = runSnapshotQa(CLI, projectDir);
+  if (!qa.ok) {
+    if (previous !== null) writeFileSync(indexPath, previous);
+    return {
+      ok: false,
+      error: "The generated project could not produce visual QA snapshots.",
+      findings: qa.findings.slice(0, 30_000),
+      captures,
+    };
+  }
+
   return {
     ok: true,
     captures,
     check: check.findings.slice(0, 30_000),
+    qa: {
+      findings: qa.findings.slice(0, 20_000),
+      contactSheetBase64: qa.contactSheetBase64,
+      mediaType: qa.mediaType,
+    },
   };
 }
