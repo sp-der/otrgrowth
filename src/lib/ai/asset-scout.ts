@@ -72,7 +72,9 @@ export function resolveCreativeWebsites(
   const discovered = urlsFromText(contextText);
   const businessSpecific =
     profile.businessName.trim().toLowerCase() === "otr services"
-      ? [...OTR_SERVICES_PORTFOLIO]
+      ? OTR_SERVICES_PORTFOLIO.map(normalizeHttpsUrl).filter(
+          (url): url is string => Boolean(url),
+        )
       : [];
 
   return unique([...manual, ...discovered, ...businessSpecific]).slice(0, 8);
