@@ -70,14 +70,22 @@ export function resolveCreativeWebsites(
     .join("\n");
 
   const discovered = urlsFromText(contextText);
-  const businessSpecific =
-    profile.businessName.trim().toLowerCase() === "otr services"
-      ? OTR_SERVICES_PORTFOLIO.map(normalizeHttpsUrl).filter(
-          (url): url is string => Boolean(url),
-        )
-      : [];
+  const isOtrServices =
+    profile.businessName.trim().toLowerCase() === "otr services";
+  const businessSpecific = isOtrServices
+    ? OTR_SERVICES_PORTFOLIO.map(normalizeHttpsUrl).filter(
+        (url): url is string => Boolean(url),
+      )
+    : [];
 
-  return unique([...manual, ...discovered, ...businessSpecific]).slice(0, 8);
+  if (isOtrServices) {
+    // OTR Services portfolio creatives should default to the approved client
+    // registry, not the agency's own profile/social URLs. Manual URLs still
+    // remain an explicit override.
+    return unique([...manual, ...businessSpecific]).slice(0, 8);
+  }
+
+  return unique([...manual, ...discovered]).slice(0, 8);
 }
 
 export const otrServicesPortfolioSites = [...OTR_SERVICES_PORTFOLIO];
