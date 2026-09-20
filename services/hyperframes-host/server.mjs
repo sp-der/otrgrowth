@@ -2,6 +2,7 @@ import http from "node:http";
 import net from "node:net";
 import { spawn, spawnSync } from "node:child_process";
 import {
+  createReadStream,
   mkdirSync,
   existsSync,
   writeFileSync,
@@ -9,7 +10,12 @@ import {
   statSync,
 } from "node:fs";
 import { resolve, join } from "node:path";
-import { installGeneratedProject } from "./generator.mjs";
+import {
+  generatedDeliveryPath,
+  installGeneratedProject,
+  renderGeneratedProject,
+  storeGeneratedVideoAsset,
+} from "./generator.mjs";
 
 const PORT = Number(process.env.PORT || 8080);
 const PROJECTS_DIR = resolve(process.env.HYPERFRAMES_PROJECTS_DIR || "/data/projects");
@@ -54,6 +60,17 @@ async function readJsonBody(request, maxBytes = 4_000_000) {
   }
   if (!chunks.length) return {};
   return JSON.parse(Buffer.concat(chunks).toString("utf8"));
+}
+
+async function readBinaryBody(request, maxBytes = 25_000_000) {
+  const chunks = [];
+  let total = 0;
+  for await (const chunk of request) {
+    total += chunk.length;
+    if (total > maxBytes) throw new Error("request_too_large");
+    chunks.push(chunk);
+  }
+  return Buffer.concat(chunks);
 }
 
 function readSession(request) {
@@ -570,6 +587,146 @@ const server = http.createServer(async (request, response) => {
         activeProjects: sessions.size,
       }),
     );
+    return;
+  }
+
+  if (request.url === "/otr/generated-asset" && request.method === "POST") {
+    try {
+      const accessToken = readBearer(request);
+      if (!accessToken) throw new Error("studio_auth_missing");
+      const contentType = String(request.headers["content-type"] || "").toLowerCase();
+
+      let businessId = "";
+      let source;
+      if (contentType.includes("application/json")) {
+        const body = await readJsonBody(request, 64_000);
+        businessId = typeof body.businessId === "string" ? body.businessId : "";
+        source = { url: typeof body.url === "string" ? body.url : "" };
+      } else {
+        businessId = String(request.headers["x-otr-business-id"] || "");
+        source = { data: await readBinaryBody(request) };
+      }
+
+      if (!/^[0-9a-f-]{36}$/i.test(businessId)) throw new Error("studio_business_invalid");
+      const context = await authorize({ accessToken, businessId });
+      const projectDir = ensureProject(context);
+      const result = await storeGeneratedVideoAsset({ projectDir, source });
+
+      response.writeHead(200, {
+        "content-type": "application/json",
+        "cache-control": "no-store",
+      });
+      response.end(JSON.stringify({ ok: true, ...result }));
+    } catch (error) {
+      console.error("Generated video asset rejected", error);
+      const tooLarge = error instanceof Error && error.message === "request_too_large";
+      response.writeHead(tooLarge ? 413 : 400, {
+        "content-type": "application/json",
+        "cache-control": "no-store",
+      });
+      response.end(
+        JSON.stringify({
+          ok: false,
+          error: error instanceof Error ? error.message : "generated_asset_failed",
+        }),
+      );
+    }
+    return;
+  }
+
+  if (request.url === "/otr/render" && request.method === "POST") {
+    try {
+      const accessToken = readBearer(request);
+      if (!accessToken) throw new Error("studio_auth_missing");
+      const body = await readJsonBody(request, 16_000);
+      const businessId = typeof body.businessId === "string" ? body.businessId : "";
+      if (!/^[0-9a-f-]{36}$/i.test(businessId)) throw new Error("studio_business_invalid");
+
+      const context = await authorize({ accessToken, businessId });
+      const projectDir = ensureProject(context);
+      const result = renderGeneratedProject({ CLI, projectDir });
+      if (!result.ok) {
+        response.writeHead(422, {
+          "content-type": "application/json",
+          "cache-control": "no-store",
+        });
+        response.end(JSON.stringify(result));
+        return;
+      }
+
+      response.writeHead(200, {
+        "content-type": "application/json",
+        "cache-control": "no-store",
+      });
+      response.end(
+        JSON.stringify({
+          ok: true,
+          bytes: result.bytes,
+          fps: result.fps,
+          quality: result.quality,
+        }),
+      );
+    } catch (error) {
+      console.error("Final render rejected", error);
+      response.writeHead(400, {
+        "content-type": "application/json",
+        "cache-control": "no-store",
+      });
+      response.end(
+        JSON.stringify({
+          ok: false,
+          error: error instanceof Error ? error.message : "render_failed",
+        }),
+      );
+    }
+    return;
+  }
+
+  if (request.url?.startsWith("/otr/delivery") && request.method === "GET") {
+    try {
+      const url = new URL(request.url, "http://127.0.0.1");
+      const requestedBusinessId = url.searchParams.get("businessId") || "";
+      let accessToken = readBearer(request);
+      let businessId = requestedBusinessId;
+
+      if (!accessToken) {
+        const session = readSession(request);
+        accessToken = session.accessToken;
+        if (businessId && businessId !== session.businessId) {
+          throw new Error("studio_business_forbidden");
+        }
+        businessId = session.businessId;
+      }
+
+      if (!/^[0-9a-f-]{36}$/i.test(businessId)) throw new Error("studio_business_invalid");
+      const context = await authorize({ accessToken, businessId });
+      const projectDir = ensureProject(context);
+      const output = generatedDeliveryPath(projectDir);
+      if (!existsSync(output)) {
+        response.writeHead(404, {
+          "content-type": "application/json",
+          "cache-control": "no-store",
+        });
+        response.end(JSON.stringify({ error: "delivery_not_ready" }));
+        return;
+      }
+
+      const bytes = statSync(output).size;
+      response.writeHead(200, {
+        "content-type": "video/mp4",
+        "content-length": String(bytes),
+        "content-disposition": 'inline; filename="otr-growth-ad.mp4"',
+        "cache-control": "private, no-store",
+      });
+      createReadStream(output).pipe(response);
+    } catch (error) {
+      console.error("Delivery request rejected", error);
+      response.writeHead(401, {
+        "content-type": "application/json",
+        "cache-control": "no-store",
+      });
+      response.end(JSON.stringify({ error: "delivery_unauthorized" }));
+    }
     return;
   }
 
