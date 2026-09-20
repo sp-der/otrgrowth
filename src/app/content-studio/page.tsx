@@ -27,13 +27,6 @@ type GenerateResponse = {
   findings?: string;
 };
 
-const OTR_SITES = [
-  "https://pressedinpink.com",
-  "https://pacificstayproperties.com",
-  "https://jmb2creations.com",
-  "https://mdhgrill.com",
-];
-
 function StudioFrame({
   businessId,
   businessName,
@@ -155,9 +148,8 @@ function GeneratorPanel({
   const [cta, setCta] = useState(
     isOtr ? "Built to represent your business right. @otrservicesie" : "",
   );
-  const [websitesText, setWebsitesText] = useState(
-    isOtr ? OTR_SITES.join("\n") : "",
-  );
+  const [autoAssets, setAutoAssets] = useState(true);
+  const [websitesText, setWebsitesText] = useState("");
   const [logo, setLogo] = useState<File | null>(null);
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState("");
@@ -175,7 +167,11 @@ function GeneratorPanel({
   async function generate() {
     setBusy(true);
     setError("");
-    setStatus("Preparing business context and creative brief…");
+    setStatus(
+      autoAssets
+        ? "Asset Scout is resolving Business DNA, campaign context and portfolio sources…"
+        : "Preparing business context and manual creative assets…",
+    );
     try {
       const token = await getAccessToken();
       if (!token) throw new Error("Your OTR Growth session has expired.");
@@ -212,6 +208,7 @@ function GeneratorPanel({
           aspectRatio,
           style,
           cta,
+          autoAssets,
           websites,
           logo: encodedLogo,
         }),
@@ -246,7 +243,8 @@ function GeneratorPanel({
             <span className="eyebrow">OTR AI VIDEO DIRECTOR</span>
             <h2>Generate a HyperFrames video</h2>
             <p>
-              AI authors the native project. HyperFrames checks, edits and renders it.
+              Give OTR Growth the brief. It scouts the assets, directs the native project,
+              and HyperFrames checks, edits and renders it.
             </p>
           </div>
           <button className="icon-button" type="button" onClick={onClose} disabled={busy} aria-label="Close">
@@ -284,15 +282,33 @@ function GeneratorPanel({
           </label>
 
           <label className="generator-wide">
-            <span>Website URLs · one per line</span>
-            <textarea
-              value={websitesText}
-              onChange={(event) => setWebsitesText(event.target.value)}
-              rows={4}
-              placeholder="https://example.com"
-            />
-            <small>OTR captures these into local project assets before HyperFrames validates the composition.</small>
+            <span>Asset sourcing</span>
+            <select
+              value={autoAssets ? "auto" : "manual"}
+              onChange={(event) => setAutoAssets(event.target.value === "auto")}
+            >
+              <option value="auto">Autonomous · let OTR Growth choose</option>
+              <option value="manual">Manual · choose website URLs</option>
+            </select>
+            <small>
+              Autonomous mode pulls approved public website candidates from Business DNA,
+              campaign context and the business portfolio, then lets the AI director decide
+              what strengthens the script.
+            </small>
           </label>
+
+          {!autoAssets && (
+            <label className="generator-wide">
+              <span>Website URLs · one per line</span>
+              <textarea
+                value={websitesText}
+                onChange={(event) => setWebsitesText(event.target.value)}
+                rows={4}
+                placeholder="https://example.com"
+              />
+              <small>Manual override. OTR captures these into local project assets before HyperFrames validates the composition.</small>
+            </label>
+          )}
 
           <label className="generator-wide">
             <span>CTA / end card</span>
@@ -327,7 +343,7 @@ function GeneratorPanel({
             disabled={busy || prompt.trim().length < 10 || websites.length > 8}
           >
             <Sparkles size={16} />
-            {busy ? "Generating…" : "Generate video"}
+            {busy ? "Generating…" : autoAssets ? "Generate autonomously" : "Generate video"}
           </button>
         </div>
       </section>
