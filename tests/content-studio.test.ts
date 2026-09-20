@@ -6,7 +6,7 @@ import { POST as GENERATE } from "../src/app/api/content-studio/generate/route";
 import { GET as CAPABILITIES } from "../src/app/api/content-studio/capabilities/route";
 import { getAIProvider } from "../src/lib/ai/provider";
 import { resolveCreativeWebsites } from "../src/lib/ai/asset-scout";
-import { videoGeneratorInputSchema } from "../src/lib/ai/hyperframes";
+import { normalizeHyperframesMetadata, videoGeneratorInputSchema } from "../src/lib/ai/hyperframes";
 import {
   AUTONOMOUS_VIDEO_ESTIMATED_COST_USD,
   AUTONOMOUS_VIDEO_MODEL,
