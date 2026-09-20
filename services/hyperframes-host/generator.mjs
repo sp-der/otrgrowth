@@ -64,6 +64,12 @@ async function captureWebsites(websites, assetsDir) {
         "--no-sandbox",
         "--disable-dev-shm-usage",
         "--disable-gpu",
+        "--disable-background-networking",
+        "--disable-component-update",
+        "--disable-default-apps",
+        "--disable-sync",
+        "--no-first-run",
+        "--no-default-browser-check",
         "--hide-scrollbars",
         "--window-size=1440,1200",
         "--force-device-scale-factor=1",
@@ -73,9 +79,24 @@ async function captureWebsites(websites, assetsDir) {
       ],
       { encoding: "utf8", timeout: 35_000 },
     );
-    if (result.status !== 0 || !existsSync(output)) {
+    const captureReady =
+      existsSync(output) && statSync(output).size >= 5_000;
+    if (!captureReady) {
+      rmSync(output, { force: true });
+      const diagnostic = (result.stderr || result.stdout || "Chromium capture failed")
+        .split("\n")
+        .filter(
+          (line) =>
+            line &&
+            !/google_apis\/gcm|PHONE_REGISTRATION_ERROR|DEPRECATED_ENDPOINT|Authentication Failed: wrong_secret/i.test(
+              line,
+            ),
+        )
+        .slice(-8)
+        .join("\n")
+        .slice(-800);
       throw new Error(
-        `Could not capture ${url.hostname}: ${(result.stderr || result.stdout || "Chromium capture failed").slice(-800)}`,
+        `Could not capture ${url.hostname}: ${diagnostic || "Chromium did not produce a usable screenshot."}`,
       );
     }
     captures.push({ url: url.toString(), path: `assets/${name}` });
