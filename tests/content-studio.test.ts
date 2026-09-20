@@ -331,7 +331,7 @@ test("HyperFrames host generation uses official check and system Chromium, not a
   assert.match(source, /"snapshot"/);
   assert.match(source, /ai-hero\.mp4/);
   assert.match(source, /"render"/);
-  assert.match(source, /"quality",\s*"high"/);
+  assert.match(source, /"--quality",\s*"high"/);
   assert.doesNotMatch(source, /ffmpeg|puppeteer/);
 });
 
