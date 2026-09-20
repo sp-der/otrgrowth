@@ -37,6 +37,24 @@ The generator defaults to autonomous asset sourcing so a normal creative run onl
 
 Asset scouting does not publish content, mutate ad accounts or spend advertising money.
 
+## Autonomous video delivery
+
+The finished-ad path adds a deliberately narrow paid-video lane instead of allowing the agent to fan out across multiple expensive models.
+
+1. The footage director decides whether generated footage materially improves the brief.
+2. The first production lane is pinned to `google/veo-3.1-fast-generate-001`, four seconds, 720p, one video and no generated audio.
+3. The current fixed ceiling is $0.40 for video generation. The request checks both the user-selected budget and the live Gateway credit balance before starting.
+4. The Gateway start call uses one idempotency key. OTR Growth never starts a paid retry for the same autonomous run.
+5. Generated footage is copied into the authenticated business project as `assets/ai-hero.mp4`. Remote model URLs are never authored into the HyperFrames composition.
+6. HyperFrames combines the generated support shot with real website captures, the real uploaded logo, editable text and deterministic motion.
+7. The official `hyperframes check` gate runs first, followed by five `hyperframes snapshot` proof frames and a contact sheet.
+8. A vision-capable Gateway model reviews that contact sheet for clipping, readability, blank/error states, website framing, CTA/brand visibility and overall ad coherence.
+9. At most one composition repair pass is allowed. A repair never regenerates the paid Veo clip.
+10. Only a visually approved composition proceeds to the official high-quality HyperFrames render.
+11. The latest final MP4 is served through the authenticated same-origin `/otr/delivery` route.
+
+For square 1:1 jobs, the first paid-video lane is skipped and HyperFrames uses real/deterministic assets only. Manual asset sourcing and a $0 video-spend mode remain available.
+
 ## Persistence
 
 Production should mount a Railway volume at `/data`. Without a volume, project edits can be lost when Railway replaces the container.
@@ -51,6 +69,8 @@ Railway host:
 
 OTR Growth / Vercel:
 - `HYPERFRAMES_STUDIO_URL` points at the Railway host. The integration may also carry a project-specific default URL in `next.config.ts` after provisioning.
+- Vercel OIDC is the preferred production authentication path for AI Gateway. `AI_GATEWAY_API_KEY` is an optional explicit server-only fallback.
+- `AI_VISUAL_QA_MODEL` optionally overrides the vision review model; the default is `google/gemini-3.1-pro-preview`.
 
 ## Security boundary
 
