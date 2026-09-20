@@ -25,6 +25,23 @@ type GenerateResponse = {
   summary?: string;
   error?: string;
   findings?: string;
+  deliveryUrl?: string;
+  videoGeneration?: {
+    used?: boolean;
+    reason?: string;
+    model?: string;
+    estimatedCostUsd?: number;
+  };
+  visualQa?: {
+    approved?: boolean;
+    summary?: string;
+    repairUsed?: boolean;
+  };
+  render?: {
+    bytes?: number;
+    fps?: number;
+    quality?: string;
+  };
 };
 
 function StudioFrame({
@@ -130,7 +147,7 @@ function GeneratorPanel({
   businessId: string;
   businessName: string;
   onClose: () => void;
-  onGenerated: () => void;
+  onGenerated: (result: GenerateResponse) => void;
 }) {
   const isOtr = businessName.trim().toLowerCase() === "otr services";
   const [prompt, setPrompt] = useState(
@@ -149,6 +166,7 @@ function GeneratorPanel({
     isOtr ? "Built to represent your business right. @otrservicesie" : "",
   );
   const [autoAssets, setAutoAssets] = useState(true);
+  const [aiVideo, setAiVideo] = useState(true);
   const [websitesText, setWebsitesText] = useState("");
   const [logo, setLogo] = useState<File | null>(null);
   const [busy, setBusy] = useState(false);
@@ -194,7 +212,11 @@ function GeneratorPanel({
         };
       }
 
-      setStatus("AI is directing the native HyperFrames composition…");
+      setStatus(
+        aiVideo
+          ? "AI is planning one budget-capped cinematic shot, then directing HyperFrames…"
+          : "AI is directing HyperFrames with real assets only…",
+      );
       const response = await fetch("/api/content-studio/generate", {
         method: "POST",
         headers: {
@@ -209,6 +231,8 @@ function GeneratorPanel({
           style,
           cta,
           autoAssets,
+          aiVideo,
+          videoBudgetUsd: aiVideo ? 0.5 : 0,
           websites,
           logo: encodedLogo,
         }),
@@ -224,10 +248,10 @@ function GeneratorPanel({
 
       setStatus(
         payload.title
-          ? `${payload.title} is ready. Reloading Studio…`
-          : "Video project is ready. Reloading Studio…",
+          ? `${payload.title} passed visual QA and the final MP4 is ready.`
+          : "The ad passed visual QA and the final MP4 is ready.",
       );
-      onGenerated();
+      onGenerated(payload);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Video generation failed.");
     } finally {
@@ -311,6 +335,22 @@ function GeneratorPanel({
           )}
 
           <label className="generator-wide">
+            <span>AI cinematic footage</span>
+            <select
+              value={aiVideo ? "smart" : "off"}
+              onChange={(event) => setAiVideo(event.target.value === "smart")}
+            >
+              <option value="smart">Smart · one shot max · up to $0.40</option>
+              <option value="off">Off · use real assets only · $0 video spend</option>
+            </select>
+            <small>
+              OTR Growth decides whether a four-second Veo Fast shot materially improves
+              the ad. One paid request maximum, no paid retries, and real logos/UI stay
+              deterministic in HyperFrames.
+            </small>
+          </label>
+
+          <label className="generator-wide">
             <span>CTA / end card</span>
             <input value={cta} onChange={(event) => setCta(event.target.value)} placeholder="Book now · Learn more · @handle" />
           </label>
@@ -356,6 +396,10 @@ export default function ContentStudioPage() {
   const [revision, setRevision] = useState(0);
   const [generatorOpen, setGeneratorOpen] = useState(false);
   const [aiReady, setAiReady] = useState<boolean | null>(null);
+  const [latestDelivery, setLatestDelivery] = useState<{
+    url: string;
+    title: string;
+  } | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -413,6 +457,17 @@ export default function ContentStudioPage() {
           <Sparkles size={14} />
           {aiReady === null ? "Checking AI…" : aiReady ? "AI director ready" : "AI gateway not configured"}
         </span>
+        {latestDelivery && (
+          <a
+            className="button primary"
+            href={latestDelivery.url}
+            target="_blank"
+            rel="noreferrer"
+          >
+            <Clapperboard size={15} />
+            View final MP4
+          </a>
+        )}
       </div>
 
       <StudioFrame
@@ -433,7 +488,13 @@ export default function ContentStudioPage() {
           businessId={business.id}
           businessName={business.profile.businessName}
           onClose={() => setGeneratorOpen(false)}
-          onGenerated={() => {
+          onGenerated={(result) => {
+            if (result.deliveryUrl) {
+              setLatestDelivery({
+                url: result.deliveryUrl,
+                title: result.title || "Latest autonomous ad",
+              });
+            }
             setGeneratorOpen(false);
             setRevision((value) => value + 1);
           }}
