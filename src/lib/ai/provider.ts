@@ -64,15 +64,52 @@ export class OpenAICompatibleProvider implements AIProvider {
         redirect: "error",
       });
       if (!response.ok) {
-        await response.body?.cancel();
-        if ([401, 403].includes(response.status))
+        let gatewayType = "";
+        try {
+          const raw = await readLimited(response.body, 32_000);
+          const parsed = JSON.parse(raw) as {
+            error?: { type?: unknown; message?: unknown };
+          };
+          gatewayType =
+            typeof parsed.error?.type === "string" ? parsed.error.type : "";
+        } catch {
+          // Keep user-facing errors deterministic even when the gateway body is absent.
+        }
+
+        if (response.status === 402) {
+          throw new AIError(
+            "GATEWAY_PAYMENT_REQUIRED",
+            gatewayType === "quota_for_entity_exceeded"
+              ? "Vercel AI Gateway budget is exhausted. Increase the team/project budget, then retry."
+              : "Vercel AI Gateway has no available credits. Add credits or a payment method, then retry.",
+            402,
+          );
+        }
+        if (response.status === 401) {
           throw new AIError(
             "GATEWAY_NOT_CONFIGURED",
-            "The AI Gateway rejected its credentials. Verify the configured provider or Vercel OIDC access.",
+            "Vercel AI Gateway rejected authentication. Add AI_GATEWAY_API_KEY to the Vercel project or verify OIDC federation is enabled.",
+            401,
           );
+        }
+        if (response.status === 403) {
+          throw new AIError(
+            "GATEWAY_ACCESS_DENIED",
+            "Vercel AI Gateway denied this project. Enable Secure Backend Access with OIDC Federation or use AI_GATEWAY_API_KEY.",
+            403,
+          );
+        }
+        if (response.status === 429) {
+          throw new AIError(
+            "PROVIDER_UNAVAILABLE",
+            "Vercel AI Gateway is rate-limited. Wait briefly and retry.",
+            429,
+          );
+        }
         throw new AIError(
           "PROVIDER_UNAVAILABLE",
-          "The AI Gateway is unavailable or rate-limited. Confirm it is running and has a working upstream provider, then retry.",
+          "The AI Gateway is unavailable. Verify the model and provider configuration, then retry.",
+          502,
         );
       }
       let envelope;
@@ -106,9 +143,11 @@ export class OpenAICompatibleProvider implements AIProvider {
   }
 }
 export function getAIProvider(options: { timeoutMs?: number; maxTokens?: number } = {}): AIProvider {
-  const explicitKey = process.env.AI_API_KEY?.trim() || "";
+  const customKey = process.env.AI_API_KEY?.trim() || "";
+  const gatewayKey = process.env.AI_GATEWAY_API_KEY?.trim() || "";
   const vercelOidc = getVercelRuntimeOidcToken();
-  const useVercelGateway = !explicitKey && Boolean(vercelOidc);
+  const useVercelGateway = Boolean(gatewayKey || (!customKey && vercelOidc));
+  const apiKey = customKey || gatewayKey || vercelOidc;
 
   return new OpenAICompatibleProvider(
     {
@@ -117,7 +156,7 @@ export function getAIProvider(options: { timeoutMs?: number; maxTokens?: number 
         (useVercelGateway
           ? "https://ai-gateway.vercel.sh/v1"
           : "http://127.0.0.1:3001/v1"),
-      apiKey: explicitKey || vercelOidc,
+      apiKey,
       model:
         process.env.AI_MODEL ||
         (useVercelGateway ? "openai/gpt-5.6-sol" : "auto:smart"),
